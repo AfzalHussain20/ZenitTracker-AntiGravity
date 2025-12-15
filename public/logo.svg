@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <defs>
+    <linearGradient id="zenitRichBlueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#007BFF"></stop>
+        <stop offset="100%" stop-color="#00C6FF"></stop>
+    </linearGradient>
+    </defs>
+    <path d="M 15 25 H 80 L 30 80 H 65" stroke="url(#zenitRichBlueGradient)" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+    <circle cx="75" cy="28" r="7" fill="#00AFFF"></circle>
+</svg>

@@ -1,0 +1,17 @@
+
+{
+  "name": "Zenit Tracker",
+  "short_name": "Zenit Tracker",
+  "description": "Precision in Every Test. A QA management application for streamlined testing.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1E3A8A",
+  "theme_color": "#1E3A8A",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

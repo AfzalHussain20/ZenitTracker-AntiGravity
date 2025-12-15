@@ -1,0 +1,39 @@
+
+.star-border-container {
+    display: inline-block;
+    position: relative;
+    border-radius: var(--radius);
+    padding: 1px; /* The border thickness */
+    overflow: hidden;
+    background: transparent;
+}
+  
+.star-border-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: conic-gradient(from 180deg at 50% 50%, hsl(var(--primary) / 0.8) 0%, hsl(var(--accent) / 0.8) 50%, hsl(var(--primary) / 0.8) 100%);
+    animation: spin 4s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.inner-content {
+    position: relative;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-radius: calc(var(--radius) - 1px);
+    z-index: 1;
+}
+
+/* Fallback for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .star-border-container::before {
+        animation: none;
+        background: hsl(var(--border));
+    }
+}
