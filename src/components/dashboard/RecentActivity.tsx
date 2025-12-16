@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo } from 'react';
@@ -6,7 +5,7 @@ import type { TestSession, TestCase } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Clock, History } from 'lucide-react';
+import { History, Clock, FileKey } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -21,7 +20,7 @@ interface ActivityItem extends TestCase {
 export default function RecentActivity({ sessions }: RecentActivityProps) {
   const recentActivity = useMemo(() => {
     const allActionedCases: ActivityItem[] = [];
-    
+
     sessions.forEach(session => {
       session.testCases.forEach(tc => {
         if (tc.status !== 'Untested') {
@@ -35,16 +34,16 @@ export default function RecentActivity({ sessions }: RecentActivityProps) {
 
     // Sort by last modified date, descending
     allActionedCases.sort((a, b) => {
-        const dateA = (a.lastModified as any)?.toDate ? (a.lastModified as any).toDate() : new Date(a.lastModified);
-        const dateB = (b.lastModified as any)?.toDate ? (b.lastModified as any).toDate() : new Date(b.lastModified);
-        return dateB.getTime() - dateA.getTime();
+      const dateA = (a.lastModified as any)?.toDate ? (a.lastModified as any).toDate() : new Date(a.lastModified);
+      const dateB = (b.lastModified as any)?.toDate ? (b.lastModified as any).toDate() : new Date(b.lastModified);
+      return dateB.getTime() - dateA.getTime();
     });
 
     return allActionedCases.slice(0, 5);
   }, [sessions]);
-  
+
   if (recentActivity.length === 0) {
-      return null; // Don't render the card if there's no activity
+    return null;
   }
 
   const getValidDate = (d: any): Date | null => {
@@ -56,53 +55,62 @@ export default function RecentActivity({ sessions }: RecentActivityProps) {
   };
 
   return (
-    <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-3">
-          <History className="text-primary"/> Recent Activity
+    <Card className="glass-panel overflow-hidden">
+      <CardHeader className="border-b border-border bg-muted/20">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <History className="h-5 w-5 text-primary" /> Activity Log
         </CardTitle>
-        <CardDescription>Your 5 most recently actioned test cases.</CardDescription>
+        <CardDescription>Real-time audit trail of your latest testing actions.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Test Case</TableHead>
-              <TableHead>Platform</TableHead>
-              <TableHead>Status</TableHead>
+          <TableHeader className="bg-muted/40">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-[40%]">Test Case ID</TableHead>
+              <TableHead>Environment</TableHead>
+              <TableHead>Result</TableHead>
               <TableHead className="text-right">Time</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {recentActivity.map(item => {
+            {recentActivity.map((item, i) => {
               const lastModifiedDate = getValidDate(item.lastModified);
               return (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium max-w-[200px] truncate">
+                <TableRow key={item.id + i} className="hover:bg-muted/50 border-b border-border transition-colors">
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <FileKey className="w-4 h-4 text-muted-foreground opacity-50" />
                       <TooltipProvider>
-                          <Tooltip>
-                              <TooltipTrigger asChild>
-                                  <span className="cursor-help">{item.testCaseTitle}</span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                  <p>{item.testCaseTitle}</p>
-                              </TooltipContent>
-                          </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="truncate max-w-[180px] cursor-help block">{item.testCaseTitle}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{item.testCaseTitle}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </TooltipProvider>
+                    </div>
                   </TableCell>
-                  <TableCell><Badge variant="outline">{item.platformName}</Badge></TableCell>
                   <TableCell>
-                    <Badge variant={
-                      item.status === 'Pass' ? 'default' :
-                      item.status === 'Fail' ? 'destructive' :
-                      item.status === 'Fail (Known)' ? 'destructive' :
-                      item.status === 'N/A' ? 'secondary' : 'outline'
-                    } className={item.status === 'Fail (Known)' ? 'bg-orange-600' : ''}>
+                    <Badge variant="outline" className="font-normal text-muted-foreground">{item.platformName}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`
+                      font-medium border-0 px-2 py-0.5
+                      ${item.status === 'Pass' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : ''}
+                      ${item.status === 'Fail' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : ''}
+                      ${item.status === 'Fail (Known)' ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400' : ''}
+                      ${item.status === 'N/A' ? 'bg-slate-500/10 text-slate-600 dark:text-slate-400' : ''}
+                    `}>
                       {item.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground text-xs">
-                    {lastModifiedDate ? formatDistanceToNowStrict(lastModifiedDate, { addSuffix: true }) : 'Invalid date'}
+                  <TableCell className="text-right text-xs text-muted-foreground">
+                    <div className="flex items-center justify-end gap-1">
+                      <Clock className="w-3 h-3 opacity-50" />
+                      {lastModifiedDate ? formatDistanceToNowStrict(lastModifiedDate, { addSuffix: true }) : ''}
+                    </div>
                   </TableCell>
                 </TableRow>
               );

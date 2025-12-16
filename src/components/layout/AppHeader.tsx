@@ -23,23 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LogOut, UserCircle, LayoutDashboard, TestTubeDiagonal, Users, Wand2, Library, Info, Sun, Moon, Monitor, FlaskConical } from 'lucide-react';
 
-const HeaderLogo = () => (
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="h-8 w-8">
-    <defs>
-      <linearGradient id="purpleGradientHeader" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="hsl(var(--accent))" />
-        <stop offset="100%" stopColor="hsl(var(--primary))" />
-      </linearGradient>
-    </defs>
-    <path d="M 15 25 H 80 L 30 80 H 65" 
-          stroke="url(#purpleGradientHeader)" 
-          strokeWidth="10" 
-          fill="none" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"/>
-    <circle cx="75" cy="28" r="6" fill="hsl(var(--accent))" />
-  </svg>
-);
+import { LogoIcon } from '@/components/ui/Logo';
 
 export default function AppHeader() {
   const { user, userRole } = useAuth();
@@ -64,23 +48,23 @@ export default function AppHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
         <Link href="/dashboard" className="flex items-center space-x-2">
-           <HeaderLogo />
+          <LogoIcon className="h-8 w-8" />
           <span className="font-headline text-xl font-bold text-foreground">Zenit Tracker</span>
         </Link>
-        
+
         <div className="flex items-center space-x-4">
-           <div className="hidden sm:flex items-center gap-2">
-             <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/repository')}>
-                <Library className="mr-2 h-4 w-4" />
-                Repository
+          <div className="hidden sm:flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/repository')}>
+              <Library className="mr-2 h-4 w-4" />
+              Repository
             </Button>
             <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/locator-studio')}>
-                <FlaskConical className="mr-2 h-4 w-4" />
-                Locator Lab
+              <FlaskConical className="mr-2 h-4 w-4" />
+              Locator Lab
             </Button>
             <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/new-session')}>
-                <TestTubeDiagonal className="mr-2 h-4 w-4" />
-                New Session
+              <TestTubeDiagonal className="mr-2 h-4 w-4" />
+              New Session
             </Button>
           </div>
 
@@ -108,7 +92,7 @@ export default function AppHeader() {
                   <LayoutDashboard className="mr-2 h-4 w-4" />
                   <span>Dashboard</span>
                 </DropdownMenuItem>
-                
+
                 {userRole === 'lead' && (
                   <DropdownMenuItem onClick={() => router.push('/team')}>
                     <Users className="mr-2 h-4 w-4" />
@@ -125,45 +109,45 @@ export default function AppHeader() {
                   <FlaskConical className="mr-2 h-4 w-4" />
                   <span>Locator Lab</span>
                 </DropdownMenuItem>
-                
+
                 <DropdownMenuItem onClick={() => router.push('/dashboard/clevertap-tracker')}>
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    <span>CleverTap Tracker</span>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  <span>CleverTap Tracker</span>
                 </DropdownMenuItem>
-                
+
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem onClick={() => router.push('/profile')}>
                   <UserCircle className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
-                 <DropdownMenuItem onClick={() => router.push('/about')}>
+                <DropdownMenuItem onClick={() => router.push('/about')}>
                   <Info className="mr-2 h-4 w-4" />
                   <span>About</span>
                 </DropdownMenuItem>
 
                 <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                        <Sun className="mr-2 h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                        <Moon className="absolute mr-2 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                        <span>Toggle theme</span>
-                    </DropdownMenuSubTrigger>
-                     <DropdownMenuPortal>
-                        <DropdownMenuSubContent>
-                            <DropdownMenuItem onClick={() => setTheme("light")}>
-                                <Sun className="mr-2 h-4 w-4" />
-                                <span>Light</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTheme("dark")}>
-                                <Moon className="mr-2 h-4 w-4" />
-                                <span>Dark</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTheme("system")}>
-                                <Monitor className="mr-2 h-4 w-4" />
-                                <span>System</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                    </DropdownMenuPortal>
+                  <DropdownMenuSubTrigger>
+                    <Sun className="mr-2 h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                    <Moon className="absolute mr-2 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                    <span>Toggle theme</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => setTheme("light")}>
+                        <Sun className="mr-2 h-4 w-4" />
+                        <span>Light</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("dark")}>
+                        <Moon className="mr-2 h-4 w-4" />
+                        <span>Dark</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("system")}>
+                        <Monitor className="mr-2 h-4 w-4" />
+                        <span>System</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
                 </DropdownMenuSub>
 
                 <DropdownMenuSeparator />
@@ -180,4 +164,3 @@ export default function AppHeader() {
   );
 }
 
-    

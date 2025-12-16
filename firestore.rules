@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isLead() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'lead';
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || isLead();
+      allow write: if request.auth.uid == userId;
+    }
+    
+    match /testSessions/{sessionId} {
+      allow read: if request.auth.uid == resource.data.userId || isLead();
+      allow create, update, delete: if request.auth.uid == request.resource.data.userId;
+    }
+
+    match /managedTestCases/{testCaseId} {
+        allow read, write: if request.auth != null;
+    }
+  }
+}

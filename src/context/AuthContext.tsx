@@ -1,4 +1,3 @@
-
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -7,8 +6,6 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebaseConfig';
 import type { UserProfile } from '@/types';
-import SplashScreen from '@/components/SplashScreen';
-import { usePathname, useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -26,18 +23,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<UserProfile['role'] | null>(null);
-  
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-          const userData = docSnap.data() as UserProfile;
-          setUserRole(userData.role || 'tester');
-        } else {
-          setUserRole('tester');
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const docSnap = await getDoc(userDocRef);
+          if (docSnap.exists()) {
+            const userData = docSnap.data() as UserProfile;
+            setUserRole(userData.role || 'tester');
+          } else {
+            setUserRole('tester');
+          }
+        } catch (e) {
+          console.error("Auth User Fetch Error", e);
         }
       } else {
         setUserRole(null);
@@ -49,10 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = { user, loading, userRole };
-  
-  if (loading) {
-    return <SplashScreen />;
-  }
+
+  // Note: We intentionally do NOT block rendering here with a Splash Screen.
+  // The 'ZenitSplashAnimation' in the Root/App Layout handles the visual startup sequence.
+  // This allows the App Shell to hydrate immediately behind the splash screen.
 
   return (
     <AuthContext.Provider value={value}>

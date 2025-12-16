@@ -1,68 +1,46 @@
-
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import type { TestSession, TestCase, TestCaseStatus } from '@/types';
+import type { TestSession, TestCase } from '@/types';
 import { db } from '@/lib/firebaseConfig';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle, XCircle, AlertCircle, FileText, ChevronLeft, ChevronRight, Save, Rocket, Edit3, Clock, Flag, AlertTriangle, ExternalLink } from 'lucide-react';
+import {
+  CheckCircle2, XCircle, AlertOctagon, ChevronLeft, ChevronRight,
+  Menu, PlayCircle, StopCircle, CornerDownRight, Bug, Ghost, Activity, Rocket
+} from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format, formatDistanceToNow } from 'date-fns';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-
-const RocketProgress = ({ current, total }: { current: number, total: number }) => {
-  const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
-  return (
-    <div className="flex items-center space-x-3 my-4 p-4 bg-card rounded-lg shadow">
-      <Rocket className="h-10 w-10 text-primary animate-pulse" />
-      <div className="flex-1">
-        <div className="flex justify-between mb-1">
-          <span className="text-sm font-medium text-primary">Session Progress</span>
-          <span className="text-sm font-medium text-primary">{percentage}%</span>
-        </div>
-        <Progress value={percentage} className="w-full h-3" />
-        <p className="text-xs text-muted-foreground mt-1">{current} of {total} test cases actioned</p>
-      </div>
-    </div>
-  );
-};
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const naReasonOptions = [
-  "Feature not available in this region/plan",
-  "Content not available for this profile/device",
-  "Test environment configuration issue",
-  "Feature temporarily disabled by backend",
-  "Test case deprecated or obsolete",
-  "Blocked by an unresolved critical bug",
-  "Device/OS specific incompatibility not covered by scope",
-  "Network conditions prevent testing this case",
-  "Prerequisite test case failed",
-  "Data issue specific to this test account",
-  "UI element not interactable or missing",
-  "App crash or ANR (Application Not Responding)",
-  "Other (Please specify in notes section)",
+  "Feature not available in this region",
+  "Environment configuration issue",
+  "Feature temporarily disabled",
+  "Device specific incompatibility",
+  "Blocked by critical bug",
+  "UI element not interactable",
+  "Other",
 ];
 
 const incompleteReasonOptions = [
-    "Session paused, will resume later",
-    "Blocked by a critical bug",
-    "Test environment unavailable",
-    "Leaving early for the day",
-    "Reached end of scheduled testing time",
-    "Other (Please specify in notes)",
+  "Session paused",
+  "Blocked by bug",
+  "Time constraints",
+  "Environment unavailable",
+  "Other",
 ];
 
 export default function TestSessionPage() {
@@ -74,452 +52,386 @@ export default function TestSessionPage() {
 
   const [session, setSession] = useState<TestSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [showEntrance, setShowEntrance] = useState(true);
 
-  // Modal states
+  // Modals
   const [failModalOpen, setFailModalOpen] = useState(false);
   const [naModalOpen, setNaModalOpen] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
+
+  // Form States
   const [incompleteReason, setIncompleteReason] = useState('');
-  
-  // Form fields for modals
   const [bugId, setBugId] = useState('');
   const [bugDescription, setBugDescription] = useState('');
   const [naReason, setNaReason] = useState('');
   const [isKnownFail, setIsKnownFail] = useState(false);
-  
-  // Local state for inline editing and navigation
-  const [currentTestCaseIndex, setCurrentTestCaseIndex] = useState(0);
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [editingActualResult, setEditingActualResult] = useState(false);
 
+  const [currentTestCaseIndex, setCurrentTestCaseIndex] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default closed on mobile
+
+  // Entrance Animation effect
+  useEffect(() => {
+    const timer = setTimeout(() => setShowEntrance(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Load Session
   useEffect(() => {
     if (!sessionId || !user) return;
-
     const fetchSessionData = async () => {
       setIsLoading(true);
-      setLoadingError(null);
       try {
         const sessionDocRef = doc(db, 'testSessions', sessionId);
         const sessionSnap = await getDoc(sessionDocRef);
-
         if (!sessionSnap.exists() || sessionSnap.data()?.userId !== user.uid) {
-          toast({ title: "Error", description: "Test session not found or access denied.", variant: "destructive" });
-          router.push('/dashboard');
-          return;
+          router.replace('/dashboard'); return;
         }
-        
         const data = sessionSnap.data();
-        const sessionData = { 
-            id: sessionSnap.id, 
-            ...data,
-            // Ensure all date fields are JS Date objects
-            createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
-            testCases: (data.testCases || []).map((tc: any) => ({
-              ...tc,
-              lastModified: (tc.lastModified as Timestamp)?.toDate ? (tc.lastModified as Timestamp).toDate() : new Date()
-            }))
+        const sessionData = {
+          id: sessionSnap.id, ...data,
+          createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
+          testCases: (data.testCases || []).map((tc: any) => ({
+            ...tc,
+            lastModified: (tc.lastModified as Timestamp)?.toDate ? (tc.lastModified as Timestamp).toDate() : new Date()
+          }))
         } as TestSession;
 
-
         if (sessionData.status === 'Completed') {
-             toast({ title: "Session Completed", description: "This session is finished and cannot be modified. Viewing results instead.", variant: "default" });
-             router.push(`/dashboard/session/${sessionId}/results`);
-             return;
+          router.replace(`/dashboard/session/${sessionId}/results`); return;
         }
-
         setSession(sessionData);
-
-        const firstUntestedIndex = sessionData.testCases.findIndex(tc => tc.status === 'Untested');
-        setCurrentTestCaseIndex(firstUntestedIndex !== -1 ? firstUntestedIndex : 0);
-
-      } catch (error: any) {
-        console.error("Error fetching session data:", error);
-        setLoadingError("Could not load test session. Please try again.");
-      } finally {
-        setIsLoading(false);
-      }
+        // Find first untested
+        const firstUntested = sessionData.testCases.findIndex(tc => tc.status === 'Untested');
+        setCurrentTestCaseIndex(firstUntested !== -1 ? firstUntested : 0);
+      } catch (error) { toast({ title: "Error", description: "Failed to load session." }); } finally { setIsLoading(false); }
     };
     fetchSessionData();
-  }, [sessionId, user, router, toast]);
+  }, [sessionId, user, router]);
 
   const currentTestCase = session?.testCases[currentTestCaseIndex];
   const untestedCasesCount = session?.testCases.filter(tc => tc.status === 'Untested').length || 0;
 
+  const progressPercent = session ? Math.round(((session.testCases.length - untestedCasesCount) / session.testCases.length) * 100) : 0;
+
+  // Sync Logic
   const handleUpdateSession = useCallback(async (updatedSessionData: Partial<TestSession>) => {
-      try {
-          const sessionDocRef = doc(db, 'testSessions', sessionId);
-          await updateDoc(sessionDocRef, updatedSessionData);
-
-          // Optimistically update local state.
-          // Note: server timestamps won't be reflected immediately but will be correct on next fetch.
-          setSession(prev => {
-              if (!prev) return null;
-              const newSession = {...prev, ...updatedSessionData, updatedAt: new Date() };
-              if (updatedSessionData.testCases) {
-                newSession.testCases = updatedSessionData.testCases.map(tc => ({
-                    ...tc,
-                    lastModified: (tc.lastModified as any)?.toDate ? (tc.lastModified as any).toDate() : new Date()
-                }))
-              }
-              return newSession;
-          });
-
-      } catch (error) {
-          console.error("Error updating session:", error);
-          toast({ title: "Save Error", description: `Could not update session data.`, variant: "destructive" });
-      }
+    try {
+      const sanitizedData = JSON.parse(JSON.stringify(updatedSessionData));
+      const sessionDocRef = doc(db, 'testSessions', sessionId);
+      await updateDoc(sessionDocRef, sanitizedData);
+      setSession(prev => {
+        if (!prev) return null;
+        return { ...prev, ...updatedSessionData, updatedAt: new Date() } as TestSession;
+      });
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Save Error", description: "Cloud sync failed.", variant: "destructive" });
+    }
   }, [sessionId, toast]);
 
   const handleCompleteSession = async (reason?: string) => {
     if (!session) return;
-    setIsSaving(true);
-    
-    try {
-        if (untestedCasesCount > 0 && !reason) {
-            toast({ title: "Reason Required", description: "Please provide a reason for ending an incomplete session.", variant: "destructive" });
-            setIsSaving(false);
-            return;
-        }
-
-        const newStatus = untestedCasesCount > 0 ? 'Aborted' : 'Completed';
-        
-        const sessionUpdate: Partial<TestSession> = {
-            status: newStatus,
-            updatedAt: new Date(),
-            completedAt: new Date(),
-        };
-
-        if (newStatus === 'Aborted') {
-            sessionUpdate.reasonForIncompletion = reason;
-        }
-        
-        await handleUpdateSession(sessionUpdate);
-
-        toast({ title: "Session Saved!", description: `The session has been marked as ${newStatus}.` });
-        router.push(`/dashboard/session/${sessionId}/results`);
-    } catch(error) {
-        console.error("Error completing session:", error);
-        toast({ title: "Error", description: "Could not save the session.", variant: "destructive" });
-    } finally {
-        setIsSaving(false);
-    }
+    const newStatus = untestedCasesCount > 0 ? 'Aborted' : 'Completed';
+    await handleUpdateSession({
+      status: newStatus,
+      updatedAt: new Date(),
+      completedAt: new Date(),
+      reasonForIncompletion: reason || undefined
+    });
+    router.replace(`/dashboard/session/${sessionId}/results`);
   };
 
-  const updateTestCaseStatus = async (baseStatus: 'Pass' | 'Fail' | 'N/A', details?: { bugId?: string; bugDescription?: string; naReason?: string; isKnown?: boolean }) => {
+  const updateTestCaseStatus = async (baseStatus: 'Pass' | 'Fail' | 'N/A', details?: any) => {
     if (!session || !currentTestCase) return;
-    setIsSaving(true);
-    
-    let status: TestCaseStatus = baseStatus;
-    if (baseStatus === 'Fail') {
-      status = details?.isKnown ? 'Fail (Known)' : 'Fail';
-    }
+    const status: 'Pass' | 'Fail' | 'N/A' | 'Fail (Known)' = baseStatus === 'Fail' && details?.isKnown ? 'Fail (Known)' : baseStatus;
 
     const updatedTestCases = [...session.testCases];
-    const updatedTestCase: TestCase = { 
-        ...currentTestCase, 
-        status, 
-        lastModified: new Date()
+    const updatedTestCase = {
+      ...currentTestCase,
+      status,
+      lastModified: new Date(),
+      bugId: details?.bugId || null,
+      naReason: details?.naReason || null,
+      notes: details?.bugDescription ? (currentTestCase.notes || '') + `\nBug: ${details.bugDescription}` : currentTestCase.notes,
+      actualResult: status === 'Pass' ? currentTestCase.expectedResult : (currentTestCase.actualResult || '')
     };
-
-    if (status === 'Pass') {
-      updatedTestCase.actualResult = updatedTestCase.actualResult || updatedTestCase.expectedResult || '';
-    }
-    
-    if (status === 'Fail' || status === 'Fail (Known)') {
-      updatedTestCase.bugId = details?.bugId || '';
-      if (details?.bugDescription) {
-        const currentNotes = updatedTestCase.notes || '';
-        updatedTestCase.notes = `${currentNotes}\nBug Description: ${details.bugDescription}`.trim();
-      }
-    }
-    if (status === 'N/A' && details) {
-      updatedTestCase.naReason = details.naReason || '';
-    }
 
     updatedTestCases[currentTestCaseIndex] = updatedTestCase;
-    
+
+    // Recalculate Summary
     const summary = {
-        pass: updatedTestCases.filter(tc => tc.status === 'Pass').length,
-        fail: updatedTestCases.filter(tc => tc.status === 'Fail').length,
-        failKnown: updatedTestCases.filter(tc => tc.status === 'Fail (Known)').length,
-        na: updatedTestCases.filter(tc => tc.status === 'N/A').length,
-        untested: updatedTestCases.filter(tc => tc.status === 'Untested').length,
-        total: updatedTestCases.length,
+      pass: updatedTestCases.filter(tc => tc.status === 'Pass').length,
+      fail: updatedTestCases.filter(tc => tc.status === 'Fail').length,
+      failKnown: updatedTestCases.filter(tc => tc.status === 'Fail (Known)').length,
+      na: updatedTestCases.filter(tc => tc.status === 'N/A').length,
+      untested: updatedTestCases.filter(tc => tc.status === 'Untested').length,
+      total: updatedTestCases.length,
     };
-    
-    const updatedSessionData: Partial<TestSession> = {
-        testCases: updatedTestCases,
-        summary,
-        status: session.status === 'Aborted' ? 'In Progress' : session.status,
-        updatedAt: new Date(),
-    };
-    
-    await handleUpdateSession(updatedSessionData);
-    
+
+    await handleUpdateSession({ testCases: updatedTestCases, summary, updatedAt: new Date() });
+
+    // Auto-advance
     if (currentTestCaseIndex < session.testCases.length - 1) {
       setCurrentTestCaseIndex(currentTestCaseIndex + 1);
     } else {
-      toast({ title: "All Done!", description: "You've reviewed all test cases. Click 'Complete Session' to finish." });
+      setCompleteModalOpen(true);
     }
-
-    setIsSaving(false);
-    setFailModalOpen(false);
-    setNaModalOpen(false);
-    setBugId('');
-    setBugDescription('');
-    setNaReason('');
-    setIsKnownFail(false);
-  };
-  
-  const handleFieldChange = (field: keyof TestCase, value: string) => {
-    if (!session || !currentTestCase) return;
-    
-    const updatedTestCases = [...session.testCases];
-    updatedTestCases[currentTestCaseIndex] = { ...currentTestCase, [field]: value };
-    
-    setSession({ ...session, testCases: updatedTestCases });
+    setFailModalOpen(false); setNaModalOpen(false); setBugId(''); setBugDescription(''); setIsKnownFail(false); setNaReason('');
   };
 
-  const saveNotesAndActualResult = async () => {
+  const handleManualFieldChange = (field: keyof TestCase, value: string) => {
     if (!session || !currentTestCase) return;
-    setIsSaving(true);
-    
-    const updatedTestCases = [...session.testCases];
-    updatedTestCases[currentTestCaseIndex] = { 
-        ...currentTestCase, 
-        lastModified: new Date()
-    };
+    const updated = [...session.testCases];
+    updated[currentTestCaseIndex] = { ...currentTestCase, [field]: value };
+    setSession({ ...session, testCases: updated });
+  };
 
-    const updatedSessionData = { testCases: updatedTestCases, updatedAt: new Date() };
-    await handleUpdateSession(updatedSessionData);
-
-    toast({ title: "Saved", description: "Notes and actual results updated." });
-    setEditingNotes(false);
-    setEditingActualResult(false);
-    setIsSaving(false);
+  const saveCurrentCase = async () => {
+    if (!session) return;
+    await handleUpdateSession({ testCases: session.testCases });
   }
 
-
-  if (isLoading) {
-    return <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-  }
-
-  if (loadingError) {
-    return (
-        <Alert variant="destructive" className="max-w-2xl mx-auto">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error Loading Session Data</AlertTitle>
-            <AlertDescription>
-                <p>{loadingError}</p>
-            </AlertDescription>
-        </Alert>
-    );
-  }
-
-  if (!session || !currentTestCase) {
-    return <div className="text-center py-10 text-muted-foreground">Test session or test case not found.</div>;
-  }
-
-  const actionedCases = session.testCases.filter(tc => tc.status !== 'Untested').length;
+  if (!session || !currentTestCase) return null;
 
   return (
-    <>
-      <TooltipProvider>
-      <div className="max-w-4xl mx-auto space-y-6">
-          <div className="flex justify-between items-center">
-              <Card className="flex-grow">
-                <CardHeader>
-                  <CardTitle className="text-2xl font-headline">Testing: {session.platformDetails.platformName}</CardTitle>
-                  <CardDescription>
-                    {session.platformDetails.deviceModel && `${session.platformDetails.deviceModel} | `} 
-                    {session.platformDetails.osVersion && `OS: ${session.platformDetails.osVersion} | `} 
-                    {session.platformDetails.appVersion && `App: ${session.platformDetails.appVersion}`}
-                    {session.platformDetails.browserName && `Browser: ${session.platformDetails.browserName} ${session.platformDetails.browserVersion || ''}`}
-                    {session.platformDetails.customPlatformName && `Platform: ${session.platformDetails.customPlatformName}`}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-               <Dialog open={completeModalOpen} onOpenChange={setCompleteModalOpen}>
-                  <DialogTrigger asChild>
-                      <Button size="lg" className="ml-6 h-full text-lg">
-                          <Flag className="mr-2" /> Complete Session
-                      </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                      <DialogHeader>
-                          <DialogTitle>Complete Testing Session</DialogTitle>
-                          <DialogDescription>
-                              {untestedCasesCount > 0 
-                              ? `You have ${untestedCasesCount} untested case(s). Please provide a reason for stopping early.`
-                              : "You have actioned all test cases. Ready to complete this session?"}
-                          </DialogDescription>
-                      </DialogHeader>
-                      {untestedCasesCount > 0 && (
-                          <div className="py-4">
-                              <Label htmlFor="incompleteReason">Reason</Label>
-                              <Select onValueChange={setIncompleteReason} value={incompleteReason}>
-                                  <SelectTrigger id="incompleteReason"><SelectValue placeholder="Select a reason..." /></SelectTrigger>
-                                  <SelectContent>{incompleteReasonOptions.map(r => (<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent>
-                              </Select>
-                          </div>
-                      )}
-                      <DialogFooter>
-                          <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                          <Button 
-                              onClick={() => handleCompleteSession(incompleteReason)} 
-                              disabled={isSaving || (untestedCasesCount > 0 && !incompleteReason)}
-                          >
-                              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              {untestedCasesCount > 0 ? "Submit as Aborted" : "Submit as Completed"}
-                          </Button>
-                      </DialogFooter>
-                  </DialogContent>
-              </Dialog>
+    <div className="flex bg-background text-foreground font-sans h-screen w-screen overflow-hidden">
+
+      {/* ENTRANCE ANIMATION */}
+      <AnimatePresence>
+        {showEntrance && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 1.1, filter: "blur(20px)" }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+            className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center text-foreground"
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              transition={{ type: 'spring', damping: 20 }}
+              className="flex flex-col items-center"
+            >
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full animate-pulse" />
+                <div className="relative p-8 rounded-full bg-background border border-border/50 shadow-2xl mb-8">
+                  <Rocket className="w-16 h-16 text-primary animate-bounce-slow" />
+                </div>
+              </div>
+              <h2 className="text-3xl font-black tracking-tighter uppercase mb-2 bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-600">
+                System Initialization
+              </h2>
+              <p className="text-muted-foreground font-mono text-xs uppercase tracking-[0.2em] animate-pulse">
+                Sequence: {session.id.substring(0, 8)}
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* LEFT SIDEBAR: MISSION LOG - PUSH MENU */}
+      <motion.div
+        initial={false}
+        animate={{
+          width: isSidebarOpen ? 320 : 0,
+          opacity: isSidebarOpen ? 1 : 0
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="relative h-full shrink-0 bg-card border-r border-border overflow-hidden whitespace-nowrap"
+      >
+        <div className="p-4 h-16 border-b border-border flex items-center justify-between">
+          <h2 className="font-bold text-lg">Mission Log</h2>
+          <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
+        <ScrollArea className="h-[calc(100vh-4rem)] bg-muted/10">
+          <div className="p-3 space-y-2">
+            {session.testCases.map((tc, idx) => (
+              <div
+                key={tc.id}
+                onClick={() => { setCurrentTestCaseIndex(idx); setIsSidebarOpen(false); }}
+                className={`
+             group relative flex items-start gap-4 p-4 rounded-xl text-sm cursor-pointer border transition-all
+             ${currentTestCaseIndex === idx
+                    ? 'bg-background border-primary/50 shadow-md scale-[1.02] z-10'
+                    : 'bg-card border-transparent hover:bg-card/80 hover:border-border/50 text-muted-foreground'
+                  }
+          `}
+              >
+                <div className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${tc.status === 'Pass' ? 'bg-green-500' : tc.status.includes('Fail') ? 'bg-red-500' : tc.status === 'N/A' ? 'bg-gray-400' : 'bg-muted-foreground/30'}`} />
+                <div className="flex-1 min-w-0">
+                  <p className={`font-medium leading-tight line-clamp-2 ${currentTestCaseIndex === idx ? 'text-foreground' : 'text-muted-foreground'}`}>{tc.testCaseTitle}</p>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground/60">#{idx + 1} • {tc.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </motion.div>
+
+      {/* MAIN SEQUENCER AREA - Takes full width minus sidebar if open? No, sidebar is overlay now for simplicity to ensure fit */}
+      <div className="flex-1 flex flex-col h-full relative bg-muted/5 w-full">
+
+        {/* HEADER */}
+        <header className="h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center justify-between px-4 shrink-0 z-10">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)} className="rounded-full">
+              <Menu className="w-5 h-5 text-foreground" />
+            </Button>
+            <div>
+              <h1 className="font-bold text-lg leading-tight line-clamp-1">{session.platformDetails.platformName} Mission</h1>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+                {session.platformDetails.deviceModel && <span>{session.platformDetails.deviceModel}</span>}
+                {session.platformDetails.osVersion && <span>• {session.platformDetails.osVersion}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex flex-col items-end">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground">{untestedCasesCount} Steps Left</span>
+              <Progress value={progressPercent} className="h-1.5 w-24 rounded-full bg-muted" />
+            </div>
+            <Button
+              size="sm"
+              variant={untestedCasesCount === 0 ? "default" : "secondary"}
+              className="rounded-full px-4 font-bold text-xs"
+              onClick={() => setCompleteModalOpen(true)}
+            >
+              {untestedCasesCount === 0 ? "Finish" : "Abort"}
+            </Button>
+          </div>
+        </header>
+
+        {/* WORKSPACE - FIXED HEIGHT SCROLLABLE IF NEEDED BUT TRY TO FIT */}
+        <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentTestCase.id}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className="flex-1 flex flex-col h-full gap-4 pb-20" // pb-20 for footer space
+            >
+              {/* TITLE TAGS */}
+              <div className="flex items-center gap-2 mb-1 shrink-0">
+                <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono text-muted-foreground rounded-md">{currentTestCase.platform}</Badge>
+                <Badge className={`text-[10px] h-5 px-1.5 border ${currentTestCase.priority === 'High' ? 'bg-red-500/10 text-red-600 border-red-200' : 'bg-blue-500/10 text-blue-600 border-blue-200'
+                  }`}>{currentTestCase.priority}</Badge>
+              </div>
+
+              {/* TITLE */}
+              <h2 className="text-xl md:text-2xl font-bold text-foreground leading-tight shrink-0 mb-2">
+                {currentTestCase.testCaseTitle}
+              </h2>
+
+              {/* SPLIT VIEW INSTRUCTIONS & EXPECTED - USE FLEX-1 TO FILL SPACE */}
+              <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
+                {/* INSTRUCTIONS */}
+                <Card className="flex-1 border border-border/60 shadow-sm bg-background/50 rounded-2xl flex flex-col min-h-0 overflow-hidden">
+                  <div className="px-4 py-3 border-b bg-muted/20 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground shrink-0">
+                    <CornerDownRight className="w-4 h-4" /> Steps
+                  </div>
+                  <CardContent className="p-4 overflow-y-auto flex-1 text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                    {currentTestCase.testSteps}
+                  </CardContent>
+                </Card>
+
+                {/* EXPECTED */}
+                <Card className="flex-1 border border-green-500/20 shadow-sm bg-green-50/10 rounded-2xl flex flex-col min-h-0 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-green-500/10 bg-green-500/5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-green-700 shrink-0">
+                    <CheckCircle2 className="w-4 h-4" /> Expected
+                  </div>
+                  <CardContent className="p-4 overflow-y-auto flex-1 text-sm leading-relaxed whitespace-pre-wrap font-medium text-foreground/90">
+                    {currentTestCase.expectedResult}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* OBSERVATION - SMALLER HEIGHT AT BOTTOM */}
+              <div className="shrink-0 h-24 md:h-32 mt-2">
+                <Textarea
+                  placeholder="Log observations..."
+                  value={currentTestCase.actualResult || ''}
+                  onChange={(e) => handleManualFieldChange('actualResult', e.target.value)}
+                  onBlur={saveCurrentCase}
+                  className="h-full rounded-2xl border-border bg-card resize-none shadow-sm focus:ring-1 focus:ring-primary/20 text-sm font-mono"
+                />
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* COMMAND DECK - FLOATING BOTTOM BAR */}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-xl bg-background/90 backdrop-blur-xl border border-border/50 shadow-2xl rounded-full p-2 flex items-center justify-between gap-2 z-30">
+
+          {/* Prev */}
+          <Button variant="ghost" size="icon" className="rounded-full w-10 h-10 text-muted-foreground hover:bg-muted shrink-0" onClick={() => setCurrentTestCaseIndex(Math.max(0, currentTestCaseIndex - 1))} disabled={currentTestCaseIndex === 0}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+
+          <Separator orientation="vertical" className="h-6 bg-border/50" />
+
+          {/* ACTION BUTTONS */}
+          <div className="flex-1 flex items-center justify-center gap-2">
+            <Dialog open={failModalOpen} onOpenChange={setFailModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="destructive" className="flex-1 h-10 rounded-full font-bold text-sm shadow-lg shadow-red-500/20 max-w-[120px]">
+                  <Bug className="w-3.5 h-3.5 mr-2" /> FAIL
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Report Defect</DialogTitle></DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="flex items-center space-x-2"><Checkbox id="known" checked={isKnownFail} onCheckedChange={(c) => setIsKnownFail(c as boolean)} /><Label htmlFor="known">Known Issue</Label></div>
+                  <Input placeholder="Issue ID" value={bugId} onChange={(e) => setBugId(e.target.value)} />
+                  <Textarea placeholder="Describe defect (required)..." value={bugDescription} onChange={(e) => setBugDescription(e.target.value)} />
+                </div>
+                <DialogFooter><Button variant="destructive" disabled={!bugDescription} onClick={() => updateTestCaseStatus('Fail', { bugId, bugDescription, isKnown: isKnownFail })}>Confirm Failure</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Button onClick={() => updateTestCaseStatus('Pass')} className="flex-1 h-10 rounded-full font-bold text-sm bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/20 max-w-[120px]">
+              <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> PASS
+            </Button>
+
+            <Dialog open={naModalOpen} onOpenChange={setNaModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="secondary" className="w-10 h-10 rounded-full p-0 flex items-center justify-center border border-border text-muted-foreground" title="N/A">
+                  <Ghost className="w-4 h-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Mark N/A</DialogTitle></DialogHeader>
+                <Select onValueChange={setNaReason}><SelectTrigger><SelectValue placeholder="Reason" /></SelectTrigger><SelectContent>{naReasonOptions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select>
+                <DialogFooter className="mt-4"><Button onClick={() => updateTestCaseStatus('N/A', { naReason })} disabled={!naReason}>Confirm</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
+          <Separator orientation="vertical" className="h-6 bg-border/50" />
 
-          <RocketProgress current={actionedCases} total={session.testCases.length} />
-
-          <Card className="shadow-lg">
-            <CardHeader className="flex flex-row justify-between items-start">
-                <div>
-                    <CardTitle className="flex items-center">
-                        <FileText className="mr-3 h-6 w-6 text-primary" />
-                        Test Case {currentTestCase.orderIndex + 1} of {session.testCases.length}
-                    </CardTitle>
-                    <CardDescription className="mt-1 ml-9">{currentTestCase.testCaseTitle}</CardDescription>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                    <Badge variant={
-                        currentTestCase.status === 'Pass' ? 'default' : 
-                        currentTestCase.status === 'Fail' ? 'destructive' :
-                        currentTestCase.status === 'Fail (Known)' ? 'destructive' :
-                        currentTestCase.status === 'N/A' ? 'secondary' : 'outline'
-                    } className="text-sm px-3 py-1">
-                        {currentTestCase.status === 'Fail (Known)' ? 'Fail (Known)' : currentTestCase.status}
-                    </Badge>
-                    {currentTestCase.status !== 'Untested' && (
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <div className="flex items-center text-xs text-muted-foreground">
-                            <Clock className="mr-1 h-3 w-3" />
-                            {formatDistanceToNow(new Date(currentTestCase.lastModified), { addSuffix: true })}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Last Modified: {format(new Date(currentTestCase.lastModified), "PPP p")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {currentTestCase.testBed && currentTestCase.testBed !== "N/A" && (
-                <div>
-                  <Label className="font-semibold text-sm">Test Bed</Label>
-                  <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded-md">{currentTestCase.testBed}</p>
-                </div>
-              )}
-              <div>
-                <Label className="font-semibold text-sm">Test Steps</Label>
-                <div className="text-sm text-foreground p-3 bg-muted/50 rounded-md whitespace-pre-wrap min-h-[60px]">{currentTestCase.testSteps}</div>
-              </div>
-              <div>
-                <Label className="font-semibold text-sm">Expected Result</Label>
-                <div className="text-sm text-foreground p-3 bg-muted/50 rounded-md whitespace-pre-wrap min-h-[40px]">{currentTestCase.expectedResult}</div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <Label htmlFor="actualResult" className="font-semibold text-sm">Actual Result</Label>
-                  {!editingActualResult && (<Button variant="ghost" size="sm" onClick={() => setEditingActualResult(true)}><Edit3 className="mr-1 h-3 w-3" /> Edit</Button>)}
-                </div>
-                {editingActualResult ? (
-                  <Textarea id="actualResult" value={currentTestCase.actualResult || ''} onChange={(e) => handleFieldChange('actualResult', e.target.value)} placeholder="Describe what actually happened..."/>
-                ) : (
-                  <div onClick={() => setEditingActualResult(true)} className="text-sm text-foreground p-3 bg-muted/50 rounded-md whitespace-pre-wrap min-h-[40px] cursor-text">
-                    {currentTestCase.actualResult || <span className="text-muted-foreground italic">Click to add actual result...</span>}
-                  </div>
-                )}
-              </div>
-              
-              <div>
-                 <div className="flex justify-between items-center mb-1">
-                    <Label htmlFor="notes" className="font-semibold text-sm">Notes</Label>
-                    {!editingNotes && (<Button variant="ghost" size="sm" onClick={() => setEditingNotes(true)}><Edit3 className="mr-1 h-3 w-3" /> Edit</Button>)}
-                 </div>
-                 {editingNotes ? (
-                    <Textarea id="notes" value={currentTestCase.notes || ''} onChange={(e) => handleFieldChange('notes', e.target.value)} placeholder="Add any relevant notes..."/>
-                 ) : (
-                    <div onClick={() => setEditingNotes(true)} className="text-sm text-foreground p-3 bg-muted/50 rounded-md whitespace-pre-wrap min-h-[40px] cursor-text">
-                        {currentTestCase.notes || <span className="text-muted-foreground italic">Click to add notes...</span>}
-                    </div>
-                 )}
-              </div>
-              {(editingNotes || editingActualResult) && (
-                <Button onClick={saveNotesAndActualResult} disabled={isSaving} size="sm" className="mt-2">
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Save Details
-                </Button>
-              )}
-
-            </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6">
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setCurrentTestCaseIndex(prev => Math.max(0, prev - 1))} disabled={currentTestCaseIndex === 0 || isSaving}><ChevronLeft /> Previous</Button>
-                <Button variant="outline" onClick={() => setCurrentTestCaseIndex(prev => Math.min(session.testCases.length - 1, prev + 1))} disabled={currentTestCaseIndex === session.testCases.length - 1 || isSaving}>Next <ChevronRight /></Button>
-              </div>
-              <div className="flex gap-2 flex-wrap justify-center sm:justify-end">
-                <Button onClick={() => updateTestCaseStatus('Pass')} className="bg-green-600 hover:bg-green-700 text-white" disabled={isSaving}><CheckCircle className="mr-2"/> Pass</Button>
-                
-                <Dialog open={failModalOpen} onOpenChange={setFailModalOpen}>
-                  <DialogTrigger asChild><Button variant="destructive" disabled={isSaving}><XCircle className="mr-2"/> Fail</Button></DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Log Failure Details</DialogTitle>
-                      <DialogDescription>Provide Bug ID and select if this is a known issue.</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-2">
-                       <div className="flex items-center space-x-2">
-                          <Checkbox id="known-fail" checked={isKnownFail} onCheckedChange={(checked) => setIsKnownFail(checked as boolean)} />
-                          <Label htmlFor="known-fail" className="text-sm font-medium leading-none">This is a known, existing bug.</Label>
-                       </div>
-                      <div>
-                        <Label htmlFor="bugId">Bug ID (Optional)</Label>
-                        <Input id="bugId" value={bugId} onChange={(e) => setBugId(e.target.value)} placeholder="e.g., ZEN-1234" />
-                      </div>
-                      <div>
-                        <Label htmlFor="bugDescription">Bug Description (Optional)</Label>
-                        <Textarea id="bugDescription" value={bugDescription} onChange={(e) => setBugDescription(e.target.value)} placeholder="Briefly describe the bug..."/>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setFailModalOpen(false)}>Cancel</Button>
-                      <Button onClick={() => updateTestCaseStatus('Fail', { bugId, bugDescription, isKnown: isKnownFail })} disabled={isSaving}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit Fail
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog open={naModalOpen} onOpenChange={setNaModalOpen}>
-                  <DialogTrigger asChild><Button variant="secondary" disabled={isSaving}><AlertCircle className="mr-2"/> N/A</Button></DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader><DialogTitle>Mark as N/A</DialogTitle><DialogDescription>Provide a reason why this test case is Not Applicable.</DialogDescription></DialogHeader>
-                    <div className="py-2"><Select onValueChange={setNaReason} value={naReason}><SelectTrigger><SelectValue placeholder="Select a reason" /></SelectTrigger><SelectContent>{naReasonOptions.map(r => (<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select></div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setNaModalOpen(false)}>Cancel</Button>
-                      <Button onClick={() => updateTestCaseStatus('N/A', { naReason })} disabled={isSaving || !naReason}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit N/A</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardFooter>
-          </Card>
+          {/* Next */}
+          <Button variant="ghost" size="icon" className="rounded-full w-10 h-10 text-muted-foreground hover:bg-muted shrink-0" onClick={() => setCurrentTestCaseIndex(Math.min(session.testCases.length - 1, currentTestCaseIndex + 1))} disabled={currentTestCaseIndex === session.testCases.length - 1}>
+            <ChevronRight className="w-5 h-5" />
+          </Button>
         </div>
-      </TooltipProvider>
-    </>
+
+        {/* COMPLETION DIALOG */}
+        <Dialog open={completeModalOpen} onOpenChange={setCompleteModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{untestedCasesCount === 0 ? "Mission Complete" : "Abort Mission?"}</DialogTitle>
+              <DialogDescription>{untestedCasesCount > 0 ? "The sequence isn't finished. Provide a reason to abort." : "All protocols executed. Ready to compile report."}</DialogDescription>
+            </DialogHeader>
+            {untestedCasesCount > 0 && (
+              <Select onValueChange={setIncompleteReason}><SelectTrigger><SelectValue placeholder="Reason..." /></SelectTrigger><SelectContent>{incompleteReasonOptions.map(r => (<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select>
+            )}
+            <DialogFooter><Button onClick={() => handleCompleteSession(incompleteReason)}>Generate Report</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+      </div>
+    </div>
   );
 }

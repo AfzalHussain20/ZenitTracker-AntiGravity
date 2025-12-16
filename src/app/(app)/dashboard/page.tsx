@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -9,10 +8,9 @@ import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'fireba
 import type { TestSession } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { PlusCircle, Loader2, ChevronsRight, FolderClock, FolderCheck, ArchiveX } from 'lucide-react';
+import { PlusCircle, Loader2, ChevronsRight, FolderCheck, Activity, Layers, Zap, Smartphone, Monitor, Tv, TrendingUp } from 'lucide-react';
 import ExportDataButton from '@/components/dashboard/ExportDataButton';
 import TesterProfileCard from '@/components/dashboard/TesterProfileCard';
-import OverallStatsChart from '@/components/dashboard/OverallStatsChart';
 import { format } from 'date-fns';
 import StarBorder from '@/components/ui/StarBorder';
 import { motion } from 'framer-motion';
@@ -21,11 +19,10 @@ import TeamPerformancePreview from '@/components/dashboard/TeamPerformancePrevie
 import RepositoryPreview from '@/components/dashboard/RepositoryPreview';
 import DashboardKPIRow from '@/components/dashboard/DashboardKPIRow';
 import HistoricalPerformanceChart from '@/components/dashboard/HistoricalPerformanceChart';
-import PlatformBubbleChart from '@/components/dashboard/PlatformBubbleChart';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import CleverTapPreview from '@/components/dashboard/CleverTapPreview';
 import LocatorStudioPreview from '@/components/dashboard/LocatorStudioPreview';
-
+import { ResponsiveContainer, PieChart as RePie, Pie, Cell, PieChart } from 'recharts';
 
 const getValidDate = (d: any): Date | null => {
     if (!d) return null;
@@ -43,7 +40,6 @@ const SessionCard = ({ session }: { session: TestSession }) => {
     const completedCount = summary.pass + summary.fail + summary.na + summary.failKnown;
     const completion = summary.total > 0 ? Math.round((completedCount / summary.total) * 100) : 0;
     const createdAt = getValidDate(session.createdAt);
-    const isAborted = session.status === 'Aborted';
     const canContinue = session.status === 'In Progress' || session.status === 'Aborted';
 
     return (
@@ -51,69 +47,56 @@ const SessionCard = ({ session }: { session: TestSession }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            whileHover={{ y: -4, scale: 1.02 }}
             className="w-full"
         >
-            <Card className="h-full flex flex-col transition-shadow hover:shadow-xl bg-card/50 backdrop-blur-sm">
-                <CardHeader>
+            <Card className="h-full flex flex-col transition-all duration-300 glass-panel hover:shadow-xl hover:border-primary/50 group overflow-hidden bg-card/60">
+                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <Activity className="w-24 h-24 text-primary rotate-12" />
+                </div>
+
+                <CardHeader className="relative z-10 pb-2">
                     <div className="flex justify-between items-start">
                         <div>
-                            <CardTitle className="truncate text-base">{session.platformDetails.platformName}</CardTitle>
-                            <CardDescription>
+                            <CardTitle className="truncate text-base font-semibold group-hover:text-primary transition-colors text-foreground">
+                                {session.platformDetails.platformName}
+                            </CardTitle>
+                            <CardDescription className="text-muted-foreground">
                                 {createdAt ? format(createdAt, "PPP") : 'No date'}
                             </CardDescription>
                         </div>
-                         <TooltipProvider>
+                        <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger>
-                                    <div className="relative h-12 w-12">
-                                        <svg className="h-full w-full" viewBox="0 0 36 36">
-                                            <path
-                                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                                fill="none"
-                                                stroke="hsl(var(--border))"
-                                                strokeWidth="3"
-                                            />
-                                            <path
-                                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                                fill="none"
-                                                stroke="hsl(var(--primary))"
-                                                strokeWidth="3"
-                                                strokeDasharray={`${completion}, 100`}
-                                                strokeLinecap="round"
-                                                className="transition-all duration-500"
-                                            />
+                                    <div className="relative h-12 w-12 flex-shrink-0">
+                                        <svg className="h-full w-full rotate-[-90deg]" viewBox="0 0 36 36">
+                                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted/20" />
+                                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${completion}, 100`} strokeLinecap="round" className="text-primary transition-all duration-700 ease-out" />
                                         </svg>
                                         <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-sm font-bold text-primary">{completion}%</span>
+                                            <span className="text-[10px] font-bold text-primary">{completion}%</span>
                                         </div>
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>{completedCount} of {summary.total} cases actioned</p>
+                                    <p>{completedCount} of {summary.total} cases executed</p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
                     </div>
                 </CardHeader>
-                <CardContent className="flex-grow py-0">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                        <p className="font-semibold text-green-500">Pass:</p><p className="text-right">{summary.pass}</p>
-                        <p className="font-semibold text-red-500">Fail:</p><p className="text-right">{summary.fail}</p>
-                        <p className="font-semibold text-orange-500">Known:</p><p className="text-right">{summary.failKnown}</p>
-                        <p className="font-semibold text-muted-foreground">N/A:</p><p className="text-right">{summary.na}</p>
+                <CardContent className="flex-grow py-2 relative z-10">
+                    <div className="grid grid-cols-4 gap-2 text-xs bg-muted/40 p-2 rounded-lg border border-border/50">
+                        <div className="text-center"><p className="text-green-500 font-bold">{summary.pass}</p><p className="text-[10px] text-muted-foreground">Pass</p></div>
+                        <div className="text-center"><p className="text-red-500 font-bold">{summary.fail}</p><p className="text-[10px] text-muted-foreground">Fail</p></div>
+                        <div className="text-center"><p className="text-orange-500 font-bold">{summary.failKnown}</p><p className="text-[10px] text-muted-foreground">Known</p></div>
+                        <div className="text-center"><p className="text-slate-500 font-bold">{summary.na}</p><p className="text-[10px] text-muted-foreground">N/A</p></div>
                     </div>
-                     {isAborted && (
-                        <div className="mt-2 flex items-center gap-2 text-xs text-amber-500 p-1.5 bg-amber-500/10 rounded-md">
-                            <ArchiveX className="h-3 w-3" />
-                            <span>Paused</span>
-                        </div>
-                    )}
                 </CardContent>
-                <CardFooter className="pt-4">
-                    <Button asChild variant="default" size="sm" className="w-full">
+                <CardFooter className="pt-2 relative z-10">
+                    <Button asChild variant="default" size="sm" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-all">
                         <Link href={`/dashboard/session/${canContinue ? session.id : `${session.id}/results`}`}>
-                            {canContinue ? 'Continue Session' : 'View Report'} <ChevronsRight className="ml-1 h-4 w-4" />
+                            {canContinue ? 'Resume Mission' : 'Analysis Report'} <ChevronsRight className="ml-1 h-3 w-3" />
                         </Link>
                     </Button>
                 </CardFooter>
@@ -122,157 +105,274 @@ const SessionCard = ({ session }: { session: TestSession }) => {
     );
 };
 
+// --- New "Special" Overall Stats Widget ---
+const OverallStatsWidget = ({ sessions }: { sessions: TestSession[] }) => {
+    const stats = useMemo(() => {
+        let pass = 0, fail = 0, na = 0;
+        sessions.forEach(s => {
+            if (s.summary) { pass += s.summary.pass; fail += s.summary.fail + s.summary.failKnown; na += s.summary.na; }
+        });
+        const total = pass + fail + na;
+        return { pass, fail, na, total };
+    }, [sessions]);
+
+    const data = [
+        { name: 'Pass', value: stats.pass, color: '#22c55e' },
+        { name: 'Fail', value: stats.fail, color: '#ef4444' },
+        { name: 'N/A', value: stats.na, color: '#64748b' },
+    ];
+
+    if (stats.total === 0) return (
+        <Card className="glass-panel h-full flex items-center justify-center p-6 text-muted-foreground bg-card/60">
+            No Test Data
+        </Card>
+    );
+
+    return (
+        <Card className="glass-panel h-full overflow-hidden relative group bg-card/60">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <PieChart className="w-32 h-32 text-slate-500" />
+            </div>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-green-500" /> Overall Test Results
+                </CardTitle>
+                <CardDescription>Aggregate performance across {sessions.length} sessions.</CardDescription>
+            </CardHeader>
+            <CardContent className="relative z-10">
+                <div className="flex items-center gap-4">
+                    <div className="w-32 h-32 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RePie data={data} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={5} dataKey="value" stroke="none">
+                                {data.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                            </RePie>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+                            <span className="text-xl font-bold text-foreground">{stats.total}</span>
+                            <span className="text-[10px] text-muted-foreground uppercase">Tests</span>
+                        </div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                        {data.map(item => (
+                            <div key={item.name} className="flex justify-between items-center text-sm">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                    <span className="text-foreground">{item.name}</span>
+                                </div>
+                                <span className="font-mono font-bold text-foreground">{item.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+// --- New "Special" Platform Health Widget ---
+const PlatformHealthWidget = ({ sessions }: { sessions: TestSession[] }) => {
+    const platforms = useMemo(() => {
+        const map = new Map<string, { total: number, pass: number, fail: number }>();
+        sessions.forEach(s => {
+            const name = s.platformDetails.platformName || 'Unknown';
+            if (!map.has(name)) map.set(name, { total: 0, pass: 0, fail: 0 });
+            const entry = map.get(name)!;
+            if (s.summary) {
+                entry.total += s.summary.total;
+                entry.pass += s.summary.pass;
+                entry.fail += s.summary.fail + s.summary.failKnown;
+            }
+        });
+        return Array.from(map.entries()).map(([name, stats]) => ({ name, ...stats }));
+    }, [sessions]);
+
+    return (
+        <Card className="glass-panel h-full overflow-hidden relative group bg-card/60">
+            <div className="absolute bottom-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Layers className="w-32 h-32 text-blue-500" />
+            </div>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-blue-500" /> Platform Health
+                </CardTitle>
+                <CardDescription>Breakdown by Target Environment</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 relative z-10 pt-2">
+                {platforms.length === 0 ? <p className="text-sm text-muted-foreground">No platform data.</p> :
+                    platforms.map(p => (
+                        <motion.div
+                            key={p.name}
+                            initial={{ x: -10, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            className="group/item"
+                        >
+                            <div className="flex justify-between items-center mb-1">
+                                <div className="flex items-center gap-2">
+                                    {p.name.includes('Mobile') ? <Smartphone className="w-4 h-4 text-pink-500" /> :
+                                        p.name.includes('Web') ? <Monitor className="w-4 h-4 text-blue-500" /> :
+                                            <Tv className="w-4 h-4 text-purple-500" />}
+                                    <span className="text-sm font-medium text-foreground">{p.name}</span>
+                                </div>
+                                <span className="text-xs font-mono text-muted-foreground group-hover/item:text-foreground transition-colors">{p.total} cases</span>
+                            </div>
+                            {/* Hover reveal stats */}
+                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden flex">
+                                <div className="h-full bg-green-500" style={{ width: `${(p.pass / p.total) * 100}%` }} />
+                                <div className="h-full bg-red-500" style={{ width: `${(p.fail / p.total) * 100}%` }} />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity h-0 group-hover/item:h-auto">
+                                <span>Pass: {p.pass}</span>
+                                <span>Fail: {p.fail}</span>
+                            </div>
+                        </motion.div>
+                    ))}
+            </CardContent>
+        </Card>
+    );
+};
+
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-  
-  const [sessions, setSessions] = useState<TestSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    if (!user) {
-        setLoading(false);
-        return;
-    }
-    
-    setLoading(true);
-    const sessionsQuery = query(
-        collection(db, 'testSessions'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-    );
+    const { user, loading: authLoading } = useAuth();
+    const [sessions, setSessions] = useState<TestSession[]>([]);
+    const [sessionsLoading, setSessionsLoading] = useState(true);
 
-    const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
-        const fetchedSessions = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                createdAt: getValidDate(data.createdAt),
-                updatedAt: getValidDate(data.updatedAt)
-            } as TestSession;
-        });
-        setSessions(fetchedSessions);
-        setLoading(false);
-    }, (err) => {
-        console.error("Failed to fetch sessions:", err);
-        setLoading(false);
-    });
+    useEffect(() => {
+        if (authLoading) return;
+        if (!user) { setSessionsLoading(false); return; }
+        setSessionsLoading(true);
+        const sessionsQuery = query(collection(db, 'testSessions'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
+            const fetchedSessions = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id, ...data,
+                    createdAt: getValidDate(data.createdAt),
+                    updatedAt: getValidDate(data.updatedAt)
+                } as TestSession;
+            });
+            setSessions(fetchedSessions);
+            setSessionsLoading(false);
+        }, (err) => { console.error("Failed to fetch sessions:", err); setSessionsLoading(false); });
+        return () => unsubscribe();
+    }, [user, authLoading]);
 
-    return () => unsubscribe();
+    const { activeSessions, completedSessions } = useMemo(() => {
+        const active = sessions.filter(s => s.status === 'In Progress' || s.status === 'Aborted');
+        const completed = sessions.filter(s => s.status === 'Completed');
+        return { activeSessions: active, completedSessions: completed };
+    }, [sessions]);
 
-  }, [user]);
+    // Loading State
+    if (authLoading || sessionsLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+    if (!user) return null;
 
-  const { activeSessions, completedSessions } = useMemo(() => {
-    const active = sessions.filter(s => s.status === 'In Progress' || s.status === 'Aborted');
-    const completed = sessions.filter(s => s.status === 'Completed');
-    return { activeSessions: active, completedSessions: completed };
-  }, [sessions]);
-
-
-  if (loading) {
     return (
-      <div className="flex justify-center items-center h-[calc(100vh-20rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="sr-only">Loading dashboard...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
-            <div>
-                 <h1 className="text-3xl md:text-4xl font-headline font-bold text-foreground">Welcome Back, {user?.displayName?.split(' ')[0] || 'Tester'}!</h1>
-                 <p className="text-muted-foreground mt-2">Here's your quality command center. Ready to start testing?</p>
+        <div className="space-y-8 max-w-[1700px] mx-auto p-4 md:p-8 text-foreground selection:bg-primary/20">
+            {/* Background Ambient Glow (Light/Dark Safe) */}
+            <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden bg-background">
+                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-500/10 dark:bg-blue-500/5 blur-[150px] rounded-full mix-blend-multiply dark:mix-blend-screen" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 dark:bg-purple-500/5 blur-[150px] rounded-full mix-blend-multiply dark:mix-blend-screen" />
             </div>
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="flex gap-4"
-            >
-                <ExportDataButton userId={user?.uid || null} />
-                <StarBorder>
-                    <Button asChild size="lg" className="h-12 px-6 text-base">
-                        <Link href="/dashboard/new-session">
-                            <PlusCircle />
-                            New Session
-                        </Link>
-                    </Button>
-                </StarBorder>
-            </motion.div>
-        </div>
 
-        {/* Top Section */}
-        <div className="space-y-6">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-end gap-6 pb-6 section-border border-b border-border/50">
+                <div>
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-card border border-border text-xs text-muted-foreground mb-4 shadow-sm"
+                    >
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> SYSTEM ONLINE
+                    </motion.div>
+                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground">
+                        Welcome, <span className="text-primary">{user?.displayName?.split(' ')[0] || 'Commander'}</span>
+                    </h1>
+                    <p className="text-muted-foreground mt-2 text-lg">Your testing command center is ready.</p>
+                </div>
+                <div className="flex gap-4">
+                    <ExportDataButton userId={user?.uid || null} />
+                    <StarBorder>
+                        <Button asChild size="lg" className="h-12 px-8 text-base bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 text-white shadow-xl hover:shadow-indigo-500/25 transition-all">
+                            <Link href="/dashboard/new-session">
+                                <PlusCircle className="mr-2 h-5 w-5" /> New Mission
+                            </Link>
+                        </Button>
+                    </StarBorder>
+                </div>
+            </div>
+
+            {/* KPI Row */}
             <DashboardKPIRow sessions={sessions} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Left Column */}
-                <div className="lg:col-span-3 flex flex-col gap-6">
+            {/* Main Grid Layout */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+
+                {/* Left Column (Tools & Profile) - 3 Cols */}
+                <div className="xl:col-span-3 space-y-6">
                     <TesterProfileCard user={user!} />
-                    <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
-                        <CardHeader className="pb-4">
-                            <CardTitle className="flex items-center gap-3"><FolderCheck className="text-primary"/>Completed Sessions</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                        {completedSessions.length > 0 ? (
-                                completedSessions.slice(0, 2).map(session => <SessionCard key={session.id} session={session} />)
-                            ) : (
-                            <div className="text-center text-muted-foreground py-10">
-                                <p>No completed sessions yet.</p>
-                            </div>
-                            )}
-                        </CardContent>
-                        {completedSessions.length > 2 && (
-                        <CardFooter>
-                            <Button asChild variant="outline" className="w-full">
-                            <Link href="/dashboard/sessions?tab=completed">View All Completed</Link>
-                            </Button>
-                        </CardFooter>
-                        )}
-                    </Card>
-                    <RepositoryPreview />
+                    <div className="glass-panel rounded-xl p-5 border-border/60 bg-card/60">
+                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-foreground"><Layers className="w-4 h-4 text-primary" /> Integration Suite</h3>
+                        <div className="space-y-4">
+                            <CleverTapPreview />
+                            <LocatorStudioPreview />
+                            <TeamPerformancePreview />
+                        </div>
+                    </div>
                 </div>
 
-                {/* Center Column */}
-                <div className="lg:col-span-6 flex flex-col gap-6">
+                {/* Center Column (Detailed Analytics) - 6 Cols */}
+                <div className="xl:col-span-6 space-y-6">
                     <HistoricalPerformanceChart sessions={sessions} />
                     <RecentActivity sessions={sessions} />
                 </div>
 
-                {/* Right Column */}
-                <div className="lg:col-span-3 flex flex-col gap-6">
-                    <OverallStatsChart sessions={sessions} />
-                    <PlatformBubbleChart sessions={sessions} />
-                    <LocatorStudioPreview />
-                    <CleverTapPreview />
-                    <TeamPerformancePreview />
-                </div>
-            </div>
-        </div>
+                {/* Right Column (New Widgets & Archives) - 3 Cols */}
+                <div className="xl:col-span-3 space-y-6">
+                    <div className="h-[250px]"><OverallStatsWidget sessions={sessions} /></div>
+                    <div className="h-auto"><PlatformHealthWidget sessions={sessions} /></div>
 
-        {/* Bottom Full-Width Section */}
-        {activeSessions.length > 0 && (
-            <div className="space-y-4 pt-6">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-headline font-bold text-foreground flex items-center gap-3">
-                        <FolderClock className="text-primary"/> Active Sessions
-                    </h2>
-                    {activeSessions.length > 4 && (
-                        <Button asChild variant="outline">
-                            <Link href="/dashboard/sessions?tab=active">View All Active Sessions</Link>
+                    {/* Compact Archives Widget */}
+                    <div className="glass-panel p-5 rounded-xl border-border/60 bg-card/60">
+                        <div className="flex items-center gap-2 mb-4">
+                            <FolderCheck className="w-4 h-4 text-primary" />
+                            <h3 className="text-sm font-semibold text-foreground">Mission Archives</h3>
+                        </div>
+                        <div className="space-y-2">
+                            {completedSessions.length === 0 ? <p className="text-xs text-muted-foreground">No archived missions.</p> : completedSessions.slice(0, 3).map(session => (
+                                <Link key={session.id} href={`/dashboard/session/${session.id}/results`}>
+                                    <div className="p-3 rounded-lg bg-secondary/30 hover:bg-secondary transition-colors border border-transparent hover:border-primary/20 cursor-pointer flex justify-between items-center group">
+                                        <div>
+                                            <p className="text-xs font-semibold group-hover:text-primary transition-colors text-foreground">{session.platformDetails.platformName}</p>
+                                            <p className="text-[10px] text-muted-foreground">{getValidDate(session.createdAt)?.toLocaleDateString()}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                            <span className="text-xs font-mono text-muted-foreground">{session.summary?.pass} Pass</span>
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                        <Button asChild variant="ghost" size="sm" className="w-full text-xs mt-3 h-auto py-1 text-muted-foreground hover:text-primary">
+                            <Link href="/dashboard?tab=completed">View All Logs <ChevronsRight className="w-3 h-3 ml-1" /></Link>
                         </Button>
-                    )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {activeSessions.slice(0, 4).map(session => <SessionCard key={session.id} session={session} />)}
+                    </div>
+                    <RepositoryPreview />
                 </div>
             </div>
-        )}
-    </div>
-  );
-}
 
-    
+            {/* Active Sessions Deck */}
+            {activeSessions.length > 0 && (
+                <div className="pt-8 border-t border-border/50">
+                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-3 text-foreground">
+                        <Zap className="text-yellow-500 fill-yellow-500/20 w-6 h-6" /> Active Missions
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {activeSessions.slice(0, 4).map(session => <SessionCard key={session.id} session={session} />)}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

@@ -1,10 +1,8 @@
-
 "use client";
 
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Users, BarChart } from 'lucide-react';
+import { Users, BarChart, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export default function TeamPerformancePreview() {
@@ -16,19 +14,28 @@ export default function TeamPerformancePreview() {
   }
 
   return (
-    <Card className="transition-all hover:shadow-lg hover:-translate-y-1 h-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-3">
-          <Users className="text-primary" /> Team Performance
+    <Card className="glass-panel group relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-pink-500/50 cursor-pointer">
+      <Link href="/team" className="absolute inset-0 z-20" aria-label="View Team Report" />
+
+      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <Users className="h-16 w-16 text-pink-500 rotate-12" />
+      </div>
+
+      <CardHeader className="pb-2 relative z-10">
+        <CardTitle className="flex items-center gap-3 text-base group-hover:text-pink-500 transition-colors">
+          <div className="p-2 rounded-lg bg-pink-500/10 group-hover:bg-pink-500/20 transition-colors">
+            <BarChart className="text-pink-500 h-4 w-4" />
+          </div>
+          Team Analytics
         </CardTitle>
-        <CardDescription>Get a high-level overview of your team's activity.</CardDescription>
+        <CardDescription className="text-xs text-muted-foreground">
+          Lead access only. Performance metrics overview.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Button asChild className="w-full">
-            <Link href="/team">
-                <BarChart className="mr-2 h-4 w-4" /> View Full Report
-            </Link>
-        </Button>
+      <CardContent className="pt-2 relative z-10">
+        <div className="flex items-center justify-between text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors group-hover:translate-x-1 duration-300">
+          View Report <ArrowRight className="h-4 w-4" />
+        </div>
       </CardContent>
     </Card>
   );

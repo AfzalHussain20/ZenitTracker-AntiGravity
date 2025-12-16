@@ -1,7 +1,23 @@
 "use client";
 
-// This page has been simplified to let the AuthContext and Middleware handle routing.
-// It renders nothing, as the user will be immediately redirected based on auth state.
-export default function SplashPage() {
-  return null;
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import SplashScreen from '@/components/SplashScreen';
+
+export default function RootPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        router.push('/dashboard');
+      } else {
+        router.push('/login');
+      }
+    }
+  }, [user, loading, router]);
+
+  return <SplashScreen />;
 }

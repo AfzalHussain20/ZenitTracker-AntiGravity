@@ -1,65 +1,30 @@
-
 "use client";
 
-import { useEffect, useState } from 'react';
-import { db } from '@/lib/firebaseConfig';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Library } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Library, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { Skeleton } from '@/components/ui/skeleton';
 
 export default function RepositoryPreview() {
-  const [count, setCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    const q = collection(db, "managedTestCases");
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setCount(snapshot.size);
-    }, (error) => {
-      console.error("Error fetching test case count:", error);
-      setCount(0);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  if (count === null) {
-      return (
-          <Card>
-              <CardHeader className="pb-2">
-                 <Skeleton className="h-5 w-3/4" />
-                 <Skeleton className="h-4 w-1/2" />
-              </CardHeader>
-              <CardContent className="space-y-3 pt-2">
-                  <div className="text-center space-y-1">
-                    <Skeleton className="h-6 w-12 mx-auto" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                  <Skeleton className="h-9 w-full" />
-              </CardContent>
-          </Card>
-      )
-  }
-
   return (
-    <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-3 text-base">
-          <Library className="text-primary h-5 w-5" /> Test Repository
+    <Card className="glass-panel group relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-blue-500/50 cursor-pointer">
+      <Link href="/dashboard/repository" className="absolute inset-0 z-20" aria-label="Access Test Repository" />
+
+      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <Library className="h-16 w-16 text-blue-500 rotate-12" />
+      </div>
+
+      <CardHeader className="pb-2 relative z-10">
+        <CardTitle className="flex items-center gap-3 text-base group-hover:text-blue-500 transition-colors">
+          <div className="p-2 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+            <Library className="text-blue-500 h-4 w-4" />
+          </div>
+          Test Repository
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 pt-2 text-center">
-         <div>
-            <p className="text-xl font-bold">{count}</p>
-            <p className="text-xs text-muted-foreground">Total Test Cases</p>
+      <CardContent className="space-y-3 pt-2 px-6 pb-4 relative z-10">
+        <div className="flex items-center justify-between text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors group-hover:translate-x-1 duration-300">
+          Access Library <ArrowRight className="h-4 w-4" />
         </div>
-        <Button asChild size="sm" className="w-full">
-            <Link href="/dashboard/repository">
-                Go to Repository
-            </Link>
-        </Button>
       </CardContent>
     </Card>
   );

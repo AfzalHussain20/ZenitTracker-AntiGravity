@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -11,192 +10,199 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, FileSpreadsheet, ArrowLeft, Timer } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle2, XCircle, AlertTriangle, Printer, Download, Clock, BarChart3, Calendar } from 'lucide-react';
 import { format, formatDistanceStrict } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArchiveX } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 export default function TestSessionResultPage() {
   const params = useParams();
   const router = useRouter();
   const sessionId = params.sessionId as string;
   const { user } = useAuth();
-
   const [session, setSession] = useState<TestSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
+  // Helper to ensure dates are valid objects
   const getValidDate = (d: any): Date | null => {
     if (!d) return null;
     if (d instanceof Date) return d;
-    if (d instanceof Timestamp) return d.toDate();
-    if (typeof d === 'string' || typeof d === 'number') {
-        const date = new Date(d);
-        return isNaN(date.getTime()) ? null : date;
-    }
-    return null;
+    if (d?.toDate) return d.toDate(); // Firestore Timestamp
+    const date = new Date(d);
+    return isNaN(date.getTime()) ? null : date;
   };
 
-
   useEffect(() => {
-    if (!sessionId || !user) {
-      if (!user) router.push('/login');
-      return;
-    };
-
+    if (!sessionId || !user) return;
     const fetchSessionData = async () => {
-      setIsLoading(true);
+      setLoading(true);
       try {
-        const sessionDocRef = doc(db, 'testSessions', sessionId);
-        const sessionSnap = await getDoc(sessionDocRef);
-
-        if (!sessionSnap.exists() || sessionSnap.data()?.userId !== user.uid) {
-          router.push('/dashboard');
-          return;
-        }
-        
-        const data = sessionSnap.data();
-        const sessionData = { 
-            id: sessionSnap.id, 
+        const docRef = doc(db, 'testSessions', sessionId);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setSession({
+            id: snap.id,
             ...data,
             createdAt: getValidDate(data.createdAt),
-            updatedAt: getValidDate(data.updatedAt),
             completedAt: getValidDate(data.completedAt),
             testCases: (data.testCases || []).map((tc: any) => ({
-                ...tc,
-                lastModified: getValidDate(tc.lastModified),
+              ...tc, lastModified: getValidDate(tc.lastModified)
             }))
-        } as TestSession;
-        setSession(sessionData);
-
-      } catch (error) {
-        console.error("Error fetching session result data:", error);
+          } as TestSession);
+        }
+      } catch (e) {
+        console.error(e);
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
-
     fetchSessionData();
-  }, [sessionId, user, router]);
+  }, [sessionId, user]);
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-  }
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin w-8 h-8 text-primary" /></div>;
+  if (!session) return <div className="p-8 text-center text-muted-foreground">Report unavailable.</div>;
 
-  if (!session) {
-    return <div className="text-center py-10 text-muted-foreground">Test session report not found.</div>;
-  }
-  
-  const { platformDetails, summary, status, reasonForIncompletion, testCases, createdAt, completedAt } = session;
-  const sessionDuration = createdAt && completedAt ? formatDistanceStrict(completedAt, createdAt) : "N/A";
+  // --- REAL-TIME CALCULATION (Fixes Data Sync Issues) ---
+  const passed = session.testCases.filter(tc => tc.status === 'Pass').length;
+  const failed = session.testCases.filter(tc => tc.status.includes('Fail')).length;
+  const na = session.testCases.filter(tc => tc.status === 'N/A').length;
+  const total = session.testCases.length;
+  const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
 
+  const duration = session.createdAt && session.completedAt
+    ? formatDistanceStrict(session.completedAt, session.createdAt)
+    : "Ongoing";
+
+  const chartData = [
+    { name: 'Passed', value: passed, color: '#22c55e' },
+    { name: 'Failed', value: failed, color: '#ef4444' },
+    { name: 'N/A', value: na, color: '#94a3b8' },
+  ].filter(x => x.value > 0);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-       <div className="flex justify-start">
-         <Button variant="outline" onClick={() => router.push('/dashboard')}>
-           <ArrowLeft className="mr-2 h-4 w-4" />
-           Back to Dashboard
-         </Button>
-       </div>
+    <div className="min-h-screen bg-muted/10 p-4 md:p-8 font-sans text-foreground">
 
-       {status === 'Aborted' && reasonForIncompletion && (
-        <Alert variant="destructive">
-            <ArchiveX className="h-4 w-4" />
-            <AlertTitle>Session Aborted</AlertTitle>
-            <AlertDescription>
-              This session was stopped before all test cases were completed. Reason: <strong>{reasonForIncompletion}</strong>
-            </AlertDescription>
-        </Alert>
-       )}
-
-      <Card className="shadow-lg">
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="text-2xl font-headline flex items-center">
-                  <FileSpreadsheet className="mr-3 h-6 w-6 text-primary" />
-                  Test Session Report
-              </CardTitle>
-              <CardDescription className="mt-1">
-                {status === 'Completed' && `Completed on: ${format(new Date(session.completedAt || session.updatedAt), "PPP p")}`}
-                {status === 'Aborted' && `Aborted on: ${format(new Date(session.completedAt || session.updatedAt), "PPP p")}`}
-              </CardDescription>
+      {/* Header */}
+      <div className="max-w-[1400px] mx-auto space-y-8">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-background p-6 rounded-xl border border-border shadow-sm">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')} className="-ml-2 h-8">
+                <ArrowLeft className="w-4 h-4 mr-1" /> Back
+              </Button>
+              <Badge variant="outline" className="font-mono text-xs text-muted-foreground">ID: {session.id.substring(0, 8)}</Badge>
             </div>
-            <Badge variant={status === 'Completed' ? 'default' : 'destructive'} className="text-base px-4 py-1.5">{status}</Badge>
+            <h1 className="text-3xl font-bold tracking-tight">{session.platformDetails.platformName} Report</h1>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+              <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {session.createdAt ? format(session.createdAt, 'PPP') : 'N/A'}</span>
+              <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Duration: {duration}</span>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2 text-sm">
-                <h3 className="font-semibold text-lg text-primary mb-2">Platform Details</h3>
-                <p><strong className="text-muted-foreground">Platform:</strong> {platformDetails.platformName}</p>
-                {platformDetails.deviceModel && <p><strong className="text-muted-foreground">Device:</strong> {platformDetails.deviceModel}</p>}
-                {platformDetails.osVersion && <p><strong className="text-muted-foreground">OS Version:</strong> {platformDetails.osVersion}</p>}
-                {platformDetails.browserName && <p><strong className="text-muted-foreground">Browser:</strong> {platformDetails.browserName} {platformDetails.browserVersion || ''}</p>}
-                {platformDetails.appVersion && <p><strong className="text-muted-foreground">App Version:</strong> {platformDetails.appVersion}</p>}
-                {platformDetails.customPlatformName && <p><strong className="text-muted-foreground">Custom Name:</strong> {platformDetails.customPlatformName}</p>}
-            </div>
-            <div className="space-y-2 text-sm">
-                 <h3 className="font-semibold text-lg text-primary mb-2">Execution Summary</h3>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Timer className="h-4 w-4" />
-                    <strong>Total Duration:</strong>
-                    <span>{sessionDuration}</span>
-                 </div>
-                 <p><strong className="text-green-500">Passed:</strong> {summary?.pass || 0}</p>
-                 <p><strong className="text-red-500">Failed (New):</strong> {summary?.fail || 0}</p>
-                 <p><strong className="text-orange-500">Failed (Known):</strong> {summary?.failKnown || 0}</p>
-                 <p><strong className="text-yellow-500">Not Applicable:</strong> {summary?.na || 0}</p>
-                 <p><strong className="text-gray-400">Total Test Cases:</strong> {summary?.total || 0}</p>
-                 <p><strong className="text-gray-400">Untested:</strong> {summary?.untested || 0}</p>
-            </div>
-        </CardContent>
-      </Card>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.print()}><Printer className="w-4 h-4 mr-2" /> Print</Button>
+            <Button variant="default"><Download className="w-4 h-4 mr-2" /> Export PDF</Button>
+          </div>
+        </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Detailed Test Case Results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-md">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">#</TableHead>
-                  <TableHead className="w-[30%]">Test Case Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Bug ID / N/A Reason</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead className="text-right">Last Modified</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {testCases.map((tc) => (
-                  <TableRow key={tc.id}>
-                    <TableCell className="font-mono text-muted-foreground">{tc.orderIndex + 1}</TableCell>
-                    <TableCell className="font-medium">{tc.testCaseTitle}</TableCell>
-                    <TableCell>
-                      <Badge variant={
-                          tc.status === 'Pass' ? 'default' : 
-                          tc.status === 'Fail' ? 'destructive' :
-                          tc.status === 'Fail (Known)' ? 'destructive' :
-                          tc.status === 'N/A' ? 'secondary' : 'outline'
-                      } className={tc.status === 'Fail (Known)' ? 'bg-orange-600' : ''}>
-                          {tc.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{tc.bugId || tc.naReason || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground truncate max-w-xs">{tc.notes || '—'}</TableCell>
-                    <TableCell className="text-right text-muted-foreground text-xs">{format(new Date(tc.lastModified), "PPP p")}</TableCell>
+        {/* KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-l-4 border-l-green-500 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Success Rate</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">{passRate}%</div>
+              <p className="text-xs text-green-600 mt-1">Overall Quality Score</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-blue-500 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Executed</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">{total}</div>
+              <p className="text-xs text-muted-foreground mt-1">Test Cases</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-red-500 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Defects Found</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">{failed}</div>
+              <p className="text-xs text-red-500 mt-1">Critical Issues</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-gray-500 shadow-sm">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Ignored / N/A</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">{na}</div>
+              <p className="text-xs text-muted-foreground mt-1">Skipped Scenarios</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Analytics & Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Detailed Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[60px]">ID</TableHead>
+                    <TableHead>Test Scenario</TableHead>
+                    <TableHead className="w-[120px]">Status</TableHead>
+                    <TableHead>Remarks</TableHead>
                   </TableRow>
-                ))}
-                 {testCases.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="h-24 text-center">No test cases found for this session.</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {session.testCases.map((tc, i) => (
+                    <TableRow key={tc.id}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{String(i + 1).padStart(2, '0')}</TableCell>
+                      <TableCell>
+                        <div className="font-medium text-sm">{tc.testCaseTitle}</div>
+                        {tc.bugId && <Badge variant="outline" className="mt-1 text-xs border-red-200 text-red-500">Bug: {tc.bugId}</Badge>}
+                      </TableCell>
+                      <TableCell>
+                        {tc.status === 'Pass' && <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none px-2 shadow-none"><CheckCircle2 className="w-3 h-3 mr-1" /> Pass</Badge>}
+                        {tc.status.includes('Fail') && <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-none px-2 shadow-none"><XCircle className="w-3 h-3 mr-1" /> Fail</Badge>}
+                        {(tc.status === 'N/A' || tc.status === 'Untested') && <Badge variant="secondary" className="bg-gray-100 text-gray-600 px-2 shadow-none"><AlertTriangle className="w-3 h-3 mr-1" /> {tc.status}</Badge>}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                        {tc.notes || tc.naReason || tc.actualResult || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm bg-card">
+            <CardHeader><CardTitle>Distribution</CardTitle></CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%" cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    strokeWidth={5}
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(var(--card))" />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

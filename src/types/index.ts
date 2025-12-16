@@ -1,15 +1,15 @@
 import { Timestamp } from "firebase/firestore";
 
-export type Platform = 
-  | "Android TV" 
-  | "Apple TV" 
+export type Platform =
+  | "Android TV"
+  | "Apple TV"
   | "Fire TV"
   | "LG TV"
   | "Samsung TV"
-  | "Roku" 
-  | "Web" 
-  | "Mobile (Android)" 
-  | "Mobile (iOS)" 
+  | "Roku"
+  | "Web"
+  | "Mobile (Android)"
+  | "Mobile (iOS)"
   | "Other";
 
 export interface PlatformDetails {
@@ -38,6 +38,8 @@ export interface TestCase {
   naReason?: string; // If status is "N/A"
   attachments?: string[]; // URLs to attachments if any
   lastModified: Date | Timestamp;
+  priority?: "High" | "Medium" | "Low";
+  platform?: string;
 }
 
 export interface TestSession {
@@ -62,12 +64,12 @@ export interface TestSession {
 }
 
 export interface UserProfile {
-    uid: string;
-    email: string;
-    displayName: string;
-    createdAt: Date | Timestamp;
-    role: 'tester' | 'lead';
-    photoURL?: string;
+  uid: string;
+  email: string;
+  displayName: string;
+  createdAt: Date | Timestamp;
+  role: 'tester' | 'lead';
+  photoURL?: string;
 }
 
 export type ManagedTestCasePriority = "High" | "Medium" | "Low";

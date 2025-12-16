@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
@@ -9,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { TestSession } from '@/types';
 
 interface DashboardKPIRowProps {
-  sessions: TestSession[];
+    sessions: TestSession[];
 }
 
 const AnimatedCounter = ({ value, suffix = '' }: { value: number, suffix?: string }) => {
@@ -18,24 +17,28 @@ const AnimatedCounter = ({ value, suffix = '' }: { value: number, suffix?: strin
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="tracking-tight"
         >
             {value.toLocaleString()}{suffix}
         </motion.span>
     );
 };
 
-const KPICard = ({ title, value, suffix, icon: Icon, tooltip }: { title: string; value: number; suffix?: string; icon: React.ElementType, tooltip: string }) => (
+// Simplified and cleaner Card design that works in Light and Dark modes
+const KPICard = ({ title, value, suffix, icon: Icon, tooltip, colorClass }: { title: string; value: number; suffix?: string; icon: React.ElementType, tooltip: string, colorClass: string }) => (
     <TooltipProvider>
         <Tooltip>
             <TooltipTrigger asChild>
-                 <Card className="bg-card/50 backdrop-blur-sm hover:bg-accent/50 transition-colors">
+                <Card className="glass-panel hover:shadow-xl transition-all duration-300 border-l-4 border-l-transparent hover:border-l-primary group">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                        <Icon className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">{title}</CardTitle>
+                        <div className={`p-2 rounded-full bg-accent/50 group-hover:bg-accent transition-colors ${colorClass}`}>
+                            <Icon className="h-4 w-4" />
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">
-                             <AnimatedCounter value={value} suffix={suffix} />
+                        <div className="text-2xl font-bold text-foreground">
+                            <AnimatedCounter value={value} suffix={suffix} />
                         </div>
                     </CardContent>
                 </Card>
@@ -51,24 +54,22 @@ export default function DashboardKPIRow({ sessions }: DashboardKPIRowProps) {
     const [cleverTapEventCount, setCleverTapEventCount] = useState(0);
 
     useEffect(() => {
-      // This effect runs on the client and will safely access localStorage
-      if (typeof window !== 'undefined') {
-        const count = localStorage.getItem('cleverTapEventCount') || '0';
-        setCleverTapEventCount(parseInt(count, 10));
-      }
+        if (typeof window !== 'undefined') {
+            const count = localStorage.getItem('cleverTapEventCount') || '0';
+            setCleverTapEventCount(parseInt(count, 10));
+        }
 
-      // Optional: Listen for storage events if you want to sync across tabs
-      const handleStorageChange = (event: StorageEvent) => {
-          if (event.key === 'cleverTapEventCount' && event.newValue) {
-              setCleverTapEventCount(parseInt(event.newValue, 10));
-          }
-      };
-      window.addEventListener('storage', handleStorageChange);
-      return () => {
-          window.removeEventListener('storage', handleStorageChange);
-      };
+        const handleStorageChange = (event: StorageEvent) => {
+            if (event.key === 'cleverTapEventCount' && event.newValue) {
+                setCleverTapEventCount(parseInt(event.newValue, 10));
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+        };
     }, []);
-    
+
     const kpiData = useMemo(() => {
         const totalTests = sessions.reduce((acc, s) => acc + (s.summary?.total || 0), 0);
         const totalPass = sessions.reduce((acc, s) => acc + (s.summary?.pass || 0), 0);
@@ -79,14 +80,35 @@ export default function DashboardKPIRow({ sessions }: DashboardKPIRowProps) {
 
         return { totalTests, activeSessions, passRate, totalFail };
     }, [sessions]);
-    
+
+    // Staggered animation for cards
+    const container = {
+        hidden: { opacity: 0 },
+        show: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.1
+            }
+        }
+    };
+
+    const item = {
+        hidden: { opacity: 0, y: 20 },
+        show: { opacity: 1, y: 0 }
+    };
+
     return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <KPICard title="Total Tests" value={kpiData.totalTests} icon={TestTubeDiagonal} tooltip="Total number of test cases across all sessions." />
-            <KPICard title="Active Sessions" value={kpiData.activeSessions} icon={Activity} tooltip="Sessions that are currently 'In Progress' or 'Paused'." />
-            <KPICard title="Pass Rate" value={kpiData.passRate} suffix="%" icon={CheckCircle2} tooltip="Percentage of passed tests out of all completed (Pass/Fail) tests." />
-            <KPICard title="Total Failures" value={kpiData.totalFail} icon={AlertCircle} tooltip="Total number of new and known failures recorded." />
-            <KPICard title="Tracked Events" value={cleverTapEventCount} icon={Wand2} tooltip="Total events tracked using the CleverTap Event Tracker tool." />
-        </div>
+        <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
+        >
+            <motion.div variants={item}><KPICard title="Total Tests" value={kpiData.totalTests} icon={TestTubeDiagonal} tooltip="Total test cases executed." colorClass="text-blue-500" /></motion.div>
+            <motion.div variants={item}><KPICard title="Active Missions" value={kpiData.activeSessions} icon={Activity} tooltip="In-progress sessions." colorClass="text-yellow-500" /></motion.div>
+            <motion.div variants={item}><KPICard title="Success Rate" value={kpiData.passRate} suffix="%" icon={CheckCircle2} tooltip="Pass percentage." colorClass="text-green-500" /></motion.div>
+            <motion.div variants={item}><KPICard title="Failures" value={kpiData.totalFail} icon={AlertCircle} tooltip="Total failures recorded." colorClass="text-red-500" /></motion.div>
+            <motion.div variants={item}><KPICard title="Events" value={cleverTapEventCount} icon={Wand2} tooltip="CleverTap events tracked." colorClass="text-purple-500" /></motion.div>
+        </motion.div>
     );
 }
