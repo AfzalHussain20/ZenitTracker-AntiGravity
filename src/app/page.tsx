@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import SplashScreen from '@/components/SplashScreen';
+import ZenitSplashAnimation from '@/components/zenit-splash-animation';
 
 export default function RootPage() {
   const { user, loading } = useAuth();
@@ -19,5 +19,5 @@ export default function RootPage() {
     }
   }, [user, loading, router]);
 
-  return <SplashScreen />;
+  return <ZenitSplashAnimation />;
 }
