@@ -1,11 +1,11 @@
 
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
-import pdfParse from "pdf-parse";
 
 export async function parseBufferToText(buffer: Buffer, filename: string): Promise<string> {
   const lower = filename.toLowerCase();
   if (lower.endsWith(".pdf")) {
+    const pdfParse = (await import("pdf-parse")).default;
     const data = await pdfParse(buffer);
     return data.text || "";
   }
