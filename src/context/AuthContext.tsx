@@ -25,28 +25,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<UserProfile['role'] | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(userDocRef);
-          if (docSnap.exists()) {
-            const userData = docSnap.data() as UserProfile;
-            setUserRole(userData.role || 'tester');
-          } else {
-            setUserRole('tester');
+    if (auth) {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        setUser(user);
+        if (user) {
+          try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists()) {
+              const userData = docSnap.data() as UserProfile;
+              setUserRole(userData.role || 'tester');
+            } else {
+              setUserRole('tester');
+            }
+          } catch (e) {
+            console.error("Auth User Fetch Error", e);
           }
-        } catch (e) {
-          console.error("Auth User Fetch Error", e);
+        } else {
+          setUserRole(null);
         }
-      } else {
-        setUserRole(null);
-      }
-      setLoading(false);
-    });
+        setLoading(false);
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } else {
+      // If firebase is not initialized, stop loading.
+      setLoading(false);
+    }
   }, []);
 
   const value = { user, loading, userRole };
