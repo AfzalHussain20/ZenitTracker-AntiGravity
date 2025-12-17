@@ -225,11 +225,18 @@ function CleverTapTrackerPageComponent() {
         const wb = XLSX.utils.book_new();
         const exportDate = format(new Date(), "yyyy-MM-dd HH:mm:ss");
 
+        const allEvents = [...collectedEvents, ...otherEvents];
+
+        /* =========================
+           SUMMARY SHEET
+        ========================= */
         if (platformData) {
-            const allEvents = [...collectedEvents, ...otherEvents];
             const eventCounts: Record<string, number> = {};
             // @ts-ignore
-            allEvents.forEach(e => eventCounts[e.name] = (eventCounts[e.name] || 0) + 1);
+            allEvents.forEach(e => {
+                eventCounts[e.name] = (eventCounts[e.name] || 0) + 1;
+            });
+
             const summaryData = [
                 { Metric: "Platform", Value: platformData.platformName }, { Metric: "Environment", Value: platformData.testEnvironment },
                 { Metric: "Version", Value: platformData.appVersion }, { Metric: "Date", Value: exportDate },
@@ -237,16 +244,61 @@ function CleverTapTrackerPageComponent() {
                 { Metric: "", Value: "" }, ...Object.entries(eventCounts).map(([k, v]) => ({ Metric: k, Value: v })),
             ];
             const summaryWs = XLSX.utils.json_to_sheet(summaryData);
-            summaryWs['!cols'] = [{ wch: 25 }, { wch: 35 }];
+            summaryWs['!cols'] = [{ wch: 28 }, { wch: 40 }];
             XLSX.utils.sheet_add_aoa(summaryWs, [["ZENIT REPORT"]], { origin: "A1" });
             XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
         }
-        // ... (Master Data and Sheets logic same as before, abbreviated here for brevity but fully functional in implementation)
-        const allEvents = [...collectedEvents, ...otherEvents];
-        const allKeys = Array.from(new Set(allEvents.flatMap(e => Object.keys(e.params)))).sort();
-        const masterRows = allEvents.map((e, idx) => ({
-            "Event Name": e.name, "Content Type": (e as any).contentType || 'N/A', "Instance": (e as any).instance || idx + 1,
-            ...allKeys.reduce((acc, k) => ({ ...acc, [k]: e.params[k] || '' }), {})
+
+        /* =========================
+           PER-EVENT SHEETS (PRE-EVENT)
+        ========================= */
+        const eventsByName: Record<string, any[]> = {};
+
+        // @ts-ignore
+        allEvents.forEach(e => {
+            if (!eventsByName[e.name]) {
+                eventsByName[e.name] = [];
+            }
+            eventsByName[e.name].push(e);
+        });
+
+        Object.entries(eventsByName).forEach(([eventName, events]) => {
+            const paramKeys = Array.from(
+                new Set(events.flatMap(e => Object.keys(e.params)))
+            ).sort();
+
+            const rows = events.map((e: any, idx: number) => ({
+                "Content Type": e.contentType || "N/A",
+                "Instance": e.instance || idx + 1,
+                ...paramKeys.reduce(
+                    (acc, k) => ({ ...acc, [k]: e.params[k] || "" }),
+                    {}
+                ),
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(rows);
+            XLSX.utils.book_append_sheet(
+                wb,
+                ws,
+                eventName.substring(0, 31) // Excel limit
+            );
+        });
+
+        /* =========================
+           MASTER DATA SHEET
+        ========================= */
+        const masterKeys = Array.from(
+            new Set(allEvents.flatMap(e => Object.keys(e.params)))
+        ).sort();
+
+        const masterRows = allEvents.map((e: any, idx: number) => ({
+            "Event Name": e.name,
+            "Content Type": e.contentType || "N/A",
+            "Instance": e.instance || idx + 1,
+            ...masterKeys.reduce(
+                (acc, k) => ({ ...acc, [k]: e.params[k] || "" }),
+                {}
+            ),
         }));
         const masterWs = XLSX.utils.json_to_sheet(masterRows);
         XLSX.utils.book_append_sheet(wb, masterWs, "Master Data");
