@@ -8,7 +8,7 @@ import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'fireba
 import type { TestSession } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { PlusCircle, Loader2, ChevronsRight, FolderCheck, Activity, Layers, Zap, Smartphone, Monitor, Tv, TrendingUp } from 'lucide-react';
+import { PlusCircle, Loader2, ChevronsRight, FolderCheck, Activity, Layers, Zap, Smartphone, Monitor, Tv, TrendingUp, PieChart } from 'lucide-react';
 import ExportDataButton from '@/components/dashboard/ExportDataButton';
 import TesterProfileCard from '@/components/dashboard/TesterProfileCard';
 import { format } from 'date-fns';
@@ -22,7 +22,7 @@ import HistoricalPerformanceChart from '@/components/dashboard/HistoricalPerform
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import CleverTapPreview from '@/components/dashboard/CleverTapPreview';
 import LocatorStudioPreview from '@/components/dashboard/LocatorStudioPreview';
-import { ResponsiveContainer, PieChart as RePie, Pie, Cell, PieChart } from 'recharts';
+import { ResponsiveContainer, PieChart as RePie, Pie, Cell } from 'recharts';
 
 const getValidDate = (d: any): Date | null => {
     if (!d) return null;
