@@ -1,7 +1,0 @@
-# This file tells Netlify how to build and deploy your Next.js app.
-[build]
-  command = "next build"
-  publish = ".next"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
