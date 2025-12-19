@@ -143,8 +143,10 @@ const OverallStatsWidget = ({ sessions }: { sessions: TestSession[] }) => {
                 <div className="flex items-center gap-4">
                     <div className="w-32 h-32 relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            <RePie data={data} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={5} dataKey="value" stroke="none">
-                                {data.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                            <RePie>
+                                <Pie data={data} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={5} dataKey="value" stroke="none">
+                                    {data.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                                </Pie>
                             </RePie>
                         </ResponsiveContainer>
                         <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">

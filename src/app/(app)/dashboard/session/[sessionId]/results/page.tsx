@@ -72,7 +72,7 @@ export default function TestSessionResultPage() {
   const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
 
   const duration = session.createdAt && session.completedAt
-    ? formatDistanceStrict(session.completedAt, session.createdAt)
+    ? formatDistanceStrict(session.completedAt as Date, session.createdAt as Date)
     : "Ongoing";
 
   const chartData = [
@@ -96,7 +96,7 @@ export default function TestSessionResultPage() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight">{session.platformDetails.platformName} Report</h1>
             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-              <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {session.createdAt ? format(session.createdAt, 'PPP') : 'N/A'}</span>
+              <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {session.createdAt ? format(session.createdAt as Date, 'PPP') : 'N/A'}</span>
               <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Duration: {duration}</span>
             </div>
           </div>

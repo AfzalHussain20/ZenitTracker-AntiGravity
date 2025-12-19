@@ -29,83 +29,83 @@ export interface GenerateLocatorsFromHtmlInput {
 
 // --- Helper Functions ---
 function toCamelCase(str: string, suffix: string = ''): string {
-    if (!str) return '';
-    
-    const cleanedStr = str
-        .replace(/[^a-zA-Z0-9\s_-]/g, ' ') 
-        .replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+  if (!str) return '';
 
-    const s = cleanedStr
-        .split(/[\s_-]+/)
-        .filter(Boolean)
-        .map((word, index) => {
-            if (index === 0) return word.toLowerCase();
-            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-        })
-        .join('');
+  const cleanedStr = str
+    .replace(/[^a-zA-Z0-9\s_-]/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2');
 
-    let final = s || 'element';
-    
-    const lowerSuffix = suffix.toLowerCase();
-    const lowerFinal = final.toLowerCase();
-    
-    if (suffix && !lowerFinal.endsWith(lowerSuffix)) {
-        final += suffix;
-    }
-    
-    if (final.match(/^\d/)) {
-        return `element${final}`;
-    }
-    return final;
+  const s = cleanedStr
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word, index) => {
+      if (index === 0) return word.toLowerCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join('');
+
+  let final = s || 'element';
+
+  const lowerSuffix = suffix.toLowerCase();
+  const lowerFinal = final.toLowerCase();
+
+  if (suffix && !lowerFinal.endsWith(lowerSuffix)) {
+    final += suffix;
+  }
+
+  if (final.match(/^\d/)) {
+    return `element${final}`;
+  }
+  return final;
 }
 
 function getUniqueElementName(baseName: string, usedNames: Set<string>): string {
-    let finalName = baseName;
-    let counter = 1;
-    while (usedNames.has(finalName)) {
-        finalName = `${baseName}${counter}`;
-        counter++;
-    }
-    usedNames.add(finalName);
-    return finalName;
+  let finalName = baseName;
+  let counter = 1;
+  while (usedNames.has(finalName)) {
+    finalName = `${baseName}${counter}`;
+    counter++;
+  }
+  usedNames.add(finalName);
+  return finalName;
 }
 
 
 function getRelativeXPath(el: cheerio.Cheerio, $: cheerio.Root): string {
-    const id = el.attr('id');
-    if (id) {
-        return `//${el[0].tagName}[@id='${id}']`;
-    }
+  const id = el.attr('id');
+  if (id) {
+    return `//${(el[0] as any).tagName}[@id='${id}']`;
+  }
 
-    const dataTestId = el.attr('data-testid');
-    if (dataTestId) {
-        return `//${el[0].tagName}[@data-testid='${dataTestId}']`;
-    }
-    
-    const text = el.text().trim();
-    if (text && text.length > 0 && text.length < 50) {
-        const isUniqueAmongSiblings = el.siblings().filter((i, sib) => $(sib).text().trim() === text).length === 0;
-        if (isUniqueAmongSiblings) {
-             return `//${el[0].tagName}[.='${text}']`;
-        }
-    }
+  const dataTestId = el.attr('data-testid');
+  if (dataTestId) {
+    return `//${(el[0] as any).tagName}[@data-testid='${dataTestId}']`;
+  }
 
-    const className = el.attr('class');
-    if(className) {
-        return `//${el[0].tagName}[@class='${className}']`;
+  const text = el.text().trim();
+  if (text && text.length > 0 && text.length < 50) {
+    const isUniqueAmongSiblings = el.siblings().filter((i, sib) => $(sib).text().trim() === text).length === 0;
+    if (isUniqueAmongSiblings) {
+      return `//${(el[0] as any).tagName}[.='${text}']`;
     }
+  }
 
-    // Fallback XPath generation based on index
-    const tagName = el[0].tagName;
-    let index = 1;
-    let sibling = el.prev();
-    while (sibling.length > 0) {
-        if (sibling[0] && (sibling[0] as any).type === 'tag' && sibling[0].tagName === tagName) {
-            index++;
-        }
-        sibling = sibling.prev();
+  const className = el.attr('class');
+  if (className) {
+    return `//${(el[0] as any).tagName}[@class='${className}']`;
+  }
+
+  // Fallback XPath generation based on index
+  const tagName = (el[0] as any).tagName;
+  let index = 1;
+  let sibling = el.prev();
+  while (sibling.length > 0) {
+    if (sibling[0] && (sibling[0] as any).type === 'tag' && (sibling[0] as any).tagName === tagName) {
+      index++;
     }
-    return `//${tagName}[${index}]`;
+    sibling = sibling.prev();
+  }
+  return `//${tagName}[${index}]`;
 }
 
 export async function formatLocatorsAsCode(locators: GeneratedElement[], framework: string, language: string): Promise<string> {
@@ -135,8 +135,8 @@ export async function formatLocatorsAsCode(locators: GeneratedElement[], framewo
     }
     return 'css'; // Default for JS-based frameworks
   };
-  
-   if (framework === 'Playwright' || framework === 'Cypress') {
+
+  if (framework === 'Playwright' || framework === 'Cypress') {
     const body = locators.map(loc => `  ${loc.elementName}: "${getBestLocator(loc).value.replace(/"/g, '\\"')}"`).join(',\n');
     return `export const locators = {\n${body}\n};`;
   }
@@ -153,7 +153,7 @@ export async function formatLocatorsAsCode(locators: GeneratedElement[], framewo
     Python: {
       prefix: 'from selenium.webdriver.common.by import By\n\nclass PageLocators:\n',
       template: (loc: GeneratedElement) => {
-         const best = getBestLocator(loc);
+        const best = getBestLocator(loc);
         return `    ${toConstantName(loc.elementName)} = (By.${getByMethod(best.type, 'Python')}, "${best.value.replace(/"/g, '\\"')}")`
       },
       suffix: '',
@@ -161,7 +161,7 @@ export async function formatLocatorsAsCode(locators: GeneratedElement[], framewo
     'C#': {
       prefix: 'using OpenQA.Selenium;\n\npublic class PageLocators\n{\n',
       template: (loc: GeneratedElement) => {
-         const best = getBestLocator(loc);
+        const best = getBestLocator(loc);
         return `    public static readonly By ${loc.elementName} = By.${getByMethod(best.type, 'C#')}("${loc.elementName.replace(/([a-z0-9])([A-Z])/g, '$1 $2')}");`
       },
       suffix: '\n}',
@@ -194,9 +194,9 @@ export async function generateLocatorsFromHtml(input: GenerateLocatorsFromHtmlIn
 
     $(selector).each((index, el) => {
       const element = $(el);
-      const tagName = el.tagName.toLowerCase();
+      const tagName = (el as any).tagName.toLowerCase();
       const className = element.attr('class') || '';
-      
+
       const locators: LocatorDetail[] = [];
       let nameSource: string | undefined = '';
       let suffix = '';
@@ -204,11 +204,11 @@ export async function generateLocatorsFromHtml(input: GenerateLocatorsFromHtmlIn
       // Determine the element type suffix for better naming
       if (tagName === 'button' || element.attr('role') === 'button') suffix = 'Button';
       else if (tagName === 'input') {
-          const type = element.attr('type');
-          if (type === 'submit') suffix = 'Button';
-          else if (type === 'checkbox') suffix = 'Checkbox';
-          else if (type === 'radio') suffix = 'Radio';
-          else suffix = 'Input';
+        const type = element.attr('type');
+        if (type === 'submit') suffix = 'Button';
+        else if (type === 'checkbox') suffix = 'Checkbox';
+        else if (type === 'radio') suffix = 'Radio';
+        else suffix = 'Input';
       }
       else if (tagName === 'a' || element.attr('role') === 'link') suffix = 'Link';
       else if (tagName === 'select') suffix = 'Select';
@@ -233,31 +233,31 @@ export async function generateLocatorsFromHtml(input: GenerateLocatorsFromHtmlIn
         locators.push({ type: 'Name', value: `[name="${name}"]` });
         nameSource = nameSource || name;
       }
-      
+
       const placeholder = element.attr('placeholder');
       if (placeholder) {
-          locators.push({ type: 'Placeholder', value: `[placeholder="${placeholder}"]` });
-          nameSource = nameSource || placeholder;
+        locators.push({ type: 'Placeholder', value: `[placeholder="${placeholder}"]` });
+        nameSource = nameSource || placeholder;
       }
-      
+
       const ariaLabel = element.attr('aria-label')?.trim().replace(/\s+/g, ' ');
       const textContent = element.text()?.trim().replace(/\s+/g, ' ').substring(0, 50);
       const text = ariaLabel || textContent;
-      
+
       if (text && framework === 'Playwright') {
-          locators.push({ type: 'Text', value: `text=${text}` });
-          nameSource = nameSource || text;
+        locators.push({ type: 'Text', value: `text=${text}` });
+        nameSource = nameSource || text;
       } else if (text) {
-          nameSource = nameSource || text;
+        nameSource = nameSource || text;
       }
 
       if (className) {
-          const classes = className.split(' ').filter(c => c && !c.includes(':') && !c.match(/^\d/));
-          if(classes.length > 0) {
-            locators.push({ type: 'Class', value: `.${classes.join('.')}`});
-          }
+        const classes = className.split(' ').filter(c => c && !c.includes(':') && !c.match(/^\d/));
+        if (classes.length > 0) {
+          locators.push({ type: 'Class', value: `.${classes.join('.')}` });
+        }
       }
-      
+
       // CSS Selector as a fallback
       let cssSelector = tagName;
       if (id) {
@@ -266,17 +266,17 @@ export async function generateLocatorsFromHtml(input: GenerateLocatorsFromHtmlIn
         cssSelector = `[data-testid="${dataTestId}"]`;
       } else if (className) {
         const firstClass = className.split(' ').filter(c => c && !c.includes(':') && !c.match(/^\d/))[0];
-        if(firstClass) cssSelector += `.${firstClass}`;
+        if (firstClass) cssSelector += `.${firstClass}`;
       }
       locators.push({ type: 'CSS', value: cssSelector });
 
       locators.push({ type: 'XPath', value: getRelativeXPath(element, $) });
-      
+
       if (locators.length === 0) return;
 
       const baseName = toCamelCase(nameSource || tagName, suffix);
       const elementName = getUniqueElementName(baseName || `${tagName}${index}`, usedNames);
-      
+
       elements.push({
         elementName,
         tagName,
@@ -286,9 +286,9 @@ export async function generateLocatorsFromHtml(input: GenerateLocatorsFromHtmlIn
     });
 
     if (elements.length === 0) {
-        return { error: 'No interactable elements could be found in the provided HTML.' };
+      return { error: 'No interactable elements could be found in the provided HTML.' };
     }
-    
+
     const formattedCode = await formatLocatorsAsCode(elements, framework, language);
     const rawJson = JSON.stringify(elements, null, 2);
 
@@ -306,4 +306,4 @@ export async function generateLocatorsFromHtml(input: GenerateLocatorsFromHtmlIn
   }
 }
 
-    
+

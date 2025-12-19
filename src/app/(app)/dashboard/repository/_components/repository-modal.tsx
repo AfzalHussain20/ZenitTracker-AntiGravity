@@ -27,7 +27,7 @@ interface TestCaseModalProps {
 const testCaseSchema = z.object({
   title: z.string().min(1, "Title is required."),
   module: z.string().min(1, "Module/Feature is required."),
-  priority: z.enum(['High', 'Medium', 'Low'], { required_error: "Priority is required."}),
+  priority: z.enum(['High', 'Medium', 'Low'], { required_error: "Priority is required." }),
   status: z.enum(['Pass', 'Fail', 'Blocked', 'Not Run'], { required_error: "Status is required." }),
   preconditions: z.string().optional(),
   testData: z.string().optional(),
@@ -46,20 +46,20 @@ export function TestCaseModal({ isOpen, onClose, testCase }: TestCaseModalProps)
   const { control, register, handleSubmit, reset, formState: { errors } } = useForm<TestCaseFormValues>({
     resolver: zodResolver(testCaseSchema),
     defaultValues: {
-        title: '',
-        module: '',
-        priority: 'Medium',
-        status: 'Not Run',
-        preconditions: '',
-        testData: '',
-        testSteps: [''],
-        expectedResult: '',
-        automationTag: 'No',
+      title: '',
+      module: '',
+      priority: 'Medium',
+      status: 'Not Run',
+      preconditions: '',
+      testData: '',
+      testSteps: [''],
+      expectedResult: '',
+      automationTag: 'No',
     }
   });
 
   const { fields, append, remove } = useFieldArray({
-    control,
+    control: control as any,
     name: "testSteps"
   });
 
@@ -96,21 +96,21 @@ export function TestCaseModal({ isOpen, onClose, testCase }: TestCaseModalProps)
         // Update existing test case
         const docRef = doc(db, "managedTestCases", testCase.id);
         await updateDoc(docRef, {
-            ...data,
-            lastUpdatedBy: user.displayName || 'Unknown User',
-            lastUpdatedByUid: user.uid,
-            updatedAt: serverTimestamp(),
+          ...data,
+          lastUpdatedBy: user.displayName || 'Unknown User',
+          lastUpdatedByUid: user.uid,
+          updatedAt: serverTimestamp(),
         });
         toast({ title: "Success", description: "Test case updated successfully." });
       } else {
         // Create new test case
         const collectionRef = collection(db, "managedTestCases");
         await addDoc(collectionRef, {
-            ...data,
-            lastUpdatedBy: user.displayName || 'Unknown User',
-            lastUpdatedByUid: user.uid,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+          ...data,
+          lastUpdatedBy: user.displayName || 'Unknown User',
+          lastUpdatedByUid: user.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         });
         toast({ title: "Success", description: "Test case created successfully." });
       }
@@ -139,48 +139,48 @@ export function TestCaseModal({ isOpen, onClose, testCase }: TestCaseModalProps)
               <Input id="title" {...register("title")} />
               {errors.title && <p className="text-destructive text-sm mt-1">{errors.title.message}</p>}
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <Label htmlFor="module">Module/Feature</Label>
-                    <Input id="module" {...register("module")} />
-                    {errors.module && <p className="text-destructive text-sm mt-1">{errors.module.message}</p>}
-                </div>
-                <div>
-                    <Label>Priority</Label>
-                    <Controller
-                        control={control}
-                        name="priority"
-                        render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="High">High</SelectItem>
-                                    <SelectItem value="Medium">Medium</SelectItem>
-                                    <SelectItem value="Low">Low</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
-                </div>
-                 <div>
-                    <Label>Status</Label>
-                    <Controller
-                        control={control}
-                        name="status"
-                        render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Not Run">Not Run</SelectItem>
-                                    <SelectItem value="Pass">Pass</SelectItem>
-                                    <SelectItem value="Fail">Fail</SelectItem>
-                                    <SelectItem value="Blocked">Blocked</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
-                </div>
+              <div>
+                <Label htmlFor="module">Module/Feature</Label>
+                <Input id="module" {...register("module")} />
+                {errors.module && <p className="text-destructive text-sm mt-1">{errors.module.message}</p>}
+              </div>
+              <div>
+                <Label>Priority</Label>
+                <Controller
+                  control={control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="Low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Controller
+                  control={control}
+                  name="status"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Not Run">Not Run</SelectItem>
+                        <SelectItem value="Pass">Pass</SelectItem>
+                        <SelectItem value="Fail">Fail</SelectItem>
+                        <SelectItem value="Blocked">Blocked</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
             </div>
 
             <div>
@@ -198,27 +198,27 @@ export function TestCaseModal({ isOpen, onClose, testCase }: TestCaseModalProps)
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2 mb-2">
                   <span className="text-muted-foreground">{index + 1}.</span>
-                  <Input {...register(`testSteps.${index}`)} className="flex-grow"/>
+                  <Input {...register(`testSteps.${index}`)} className="flex-grow" />
                   <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} disabled={fields.length <= 1}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
               ))}
-               {errors.testSteps && <p className="text-destructive text-sm mt-1">{errors.testSteps.message || errors.testSteps.root?.message}</p>}
+              {errors.testSteps && <p className="text-destructive text-sm mt-1">{errors.testSteps.message || errors.testSteps.root?.message}</p>}
               <Button type="button" size="sm" variant="outline" onClick={() => append("")} className="mt-2">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Step
               </Button>
             </div>
 
             <div>
-                <Label htmlFor="expectedResult">Expected Result</Label>
-                <Textarea id="expectedResult" {...register("expectedResult")} />
-                {errors.expectedResult && <p className="text-destructive text-sm mt-1">{errors.expectedResult.message}</p>}
+              <Label htmlFor="expectedResult">Expected Result</Label>
+              <Textarea id="expectedResult" {...register("expectedResult")} />
+              {errors.expectedResult && <p className="text-destructive text-sm mt-1">{errors.expectedResult.message}</p>}
             </div>
 
             <div>
-                <Label htmlFor="automationTag">Automation Tag</Label>
-                <Input id="automationTag" {...register("automationTag")} placeholder="e.g., No, Yes, or script_name.py"/>
+              <Label htmlFor="automationTag">Automation Tag</Label>
+              <Input id="automationTag" {...register("automationTag")} placeholder="e.g., No, Yes, or script_name.py" />
             </div>
 
           </div>

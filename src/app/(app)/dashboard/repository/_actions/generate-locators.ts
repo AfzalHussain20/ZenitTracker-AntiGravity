@@ -30,8 +30,8 @@ export async function performLocatorGeneration(): Promise<GenerationResult> {
             title: (doc.data() as ManagedTestCase).title,
         }));
 
-        const locators = generateLocatorsFromTestCases(testCases);
-        
+        const locators = await generateLocatorsFromTestCases(testCases);
+
         return { locators, count: testCases.length };
 
     } catch (error: any) {

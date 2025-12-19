@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { adminStorage, adminDb } from "@/lib/firebaseAdminConfig";
+import * as admin from 'firebase-admin';
 import { parseBufferToText, detectPhasesFromText } from "@/utils/parsePrd";
 import { v4 as uuidv4 } from "uuid";
 import axios from 'axios';
@@ -31,8 +32,8 @@ export async function POST(req: Request) {
     const phases = detectPhasesFromText(text);
 
     if (!body.phase && phases.length > 1) {
-      return NextResponse.json({ 
-        needPhase: true, 
+      return NextResponse.json({
+        needPhase: true,
         phases: phases.map(p => p.name),
         storagePath: body.storagePath
       });
@@ -41,16 +42,16 @@ export async function POST(req: Request) {
     let snippet = text;
     let selectedPhaseName = "Initial";
     if (phases.length > 0) {
-        if (body.phase) {
-            const selected = phases.find(p => p.name === body.phase);
-            if (selected) {
-                snippet = selected.snippet;
-                selectedPhaseName = selected.name;
-            }
-        } else {
-            snippet = phases[0].snippet;
-            selectedPhaseName = phases[0].name;
+      if (body.phase) {
+        const selected = phases.find(p => p.name === body.phase);
+        if (selected) {
+          snippet = selected.snippet;
+          selectedPhaseName = selected.name;
         }
+      } else {
+        snippet = phases[0].snippet;
+        selectedPhaseName = phases[0].name;
+      }
     }
 
     const HF_API_TOKEN = process.env.HF_API_TOKEN;
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     if (!HF_API_TOKEN) {
       throw new Error("Hugging Face API token is not configured.");
     }
-    
+
     const userPrompt = `
       From the provided PRD excerpt, generate structured functional test cases.
       - Focus ONLY on the content below.
@@ -69,56 +70,56 @@ export async function POST(req: Request) {
       PRD EXCERPT:
       ${snippet.substring(0, 30000)}
     `;
-    
+
     let testcases: any[] = [];
     try {
-        const response = await axios.post(
-          API_URL,
-          { inputs: userPrompt, parameters: { max_new_tokens: 2000, return_full_text: false } },
-          { headers: { Authorization: `Bearer ${HF_API_TOKEN}` } }
-        );
-        let generatedText = response.data[0]?.generated_text || "[]";
-        generatedText = generatedText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const jsonStartIndex = generatedText.indexOf('[');
-        const jsonEndIndex = generatedText.lastIndexOf(']');
-        if (jsonStartIndex === -1 || jsonEndIndex === -1) throw new Error('No valid JSON array found.');
-        const jsonString = generatedText.substring(jsonStartIndex, jsonEndIndex + 1);
-        testcases = JSON.parse(jsonString);
+      const response = await axios.post(
+        API_URL,
+        { inputs: userPrompt, parameters: { max_new_tokens: 2000, return_full_text: false } },
+        { headers: { Authorization: `Bearer ${HF_API_TOKEN}` } }
+      );
+      let generatedText = response.data[0]?.generated_text || "[]";
+      generatedText = generatedText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const jsonStartIndex = generatedText.indexOf('[');
+      const jsonEndIndex = generatedText.lastIndexOf(']');
+      if (jsonStartIndex === -1 || jsonEndIndex === -1) throw new Error('No valid JSON array found.');
+      const jsonString = generatedText.substring(jsonStartIndex, jsonEndIndex + 1);
+      testcases = JSON.parse(jsonString);
     } catch (aiError) {
       console.error("AI generation failed, using fallback.", aiError);
       const paragraphs = snippet.split(/\n{2,}/).map(p => p.trim()).filter(Boolean).slice(0, 10);
-      testcases = paragraphs.map((p, idx) => ({ 
-          id: `TC_${String(idx + 1).padStart(3, "0")}`, 
-          title: p.split(".")[0].slice(0, 80) || `Review feature: ${idx}`,
-          steps: [p.slice(0, 200)],
+      testcases = paragraphs.map((p, idx) => ({
+        id: `TC_${String(idx + 1).padStart(3, "0")}`,
+        title: p.split(".")[0].slice(0, 80) || `Review feature: ${idx}`,
+        steps: [p.slice(0, 200)],
       }));
     }
 
     if (!Array.isArray(testcases)) {
-        throw new Error("Generated content is not a valid JSON array.");
+      throw new Error("Generated content is not a valid JSON array.");
     }
-    
+
     const batch = adminDb.batch();
     const finalTestCases = [];
 
     for (const tc of testcases) {
       const docId = tc.id ? String(tc.id).replace(/[^a-zA-Z0-9]/g, '') : uuidv4();
       const newTestCase = {
-          title: tc.title || 'Untitled Test Case',
-          module: tc.module || selectedPhaseName,
-          priority: tc.priority || 'Medium',
-          status: 'Not Run',
-          preconditions: tc.preconditions || 'N/A',
-          testSteps: tc.steps || [],
-          expectedResult: tc.expectedResult || 'TBD',
-          lastUpdatedBy: body.userEmail || 'PRD-Extractor',
-          lastUpdatedByUid: 'AI_GENERATED',
-          createdAt: adminDb.FieldValue.serverTimestamp(),
-          updatedAt: adminDb.FieldValue.serverTimestamp(),
-          source: 'PRD',
-          phase: selectedPhaseName,
+        title: tc.title || 'Untitled Test Case',
+        module: tc.module || selectedPhaseName,
+        priority: tc.priority || 'Medium',
+        status: 'Not Run',
+        preconditions: tc.preconditions || 'N/A',
+        testSteps: tc.steps || [],
+        expectedResult: tc.expectedResult || 'TBD',
+        lastUpdatedBy: body.userEmail || 'PRD-Extractor',
+        lastUpdatedByUid: 'AI_GENERATED',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        source: 'PRD',
+        phase: selectedPhaseName,
       };
-      
+
       const docRef = adminDb.collection("managedTestCases").doc(docId);
       batch.set(docRef, newTestCase);
       finalTestCases.push({ id: docId, ...newTestCase });

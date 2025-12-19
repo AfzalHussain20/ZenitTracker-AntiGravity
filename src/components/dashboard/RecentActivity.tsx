@@ -34,8 +34,8 @@ export default function RecentActivity({ sessions }: RecentActivityProps) {
 
     // Sort by last modified date, descending
     allActionedCases.sort((a, b) => {
-      const dateA = (a.lastModified as any)?.toDate ? (a.lastModified as any).toDate() : new Date(a.lastModified);
-      const dateB = (b.lastModified as any)?.toDate ? (b.lastModified as any).toDate() : new Date(b.lastModified);
+      const dateA = (a.lastModified as any)?.toDate ? (a.lastModified as any).toDate() : new Date(a.lastModified as any);
+      const dateB = (b.lastModified as any)?.toDate ? (b.lastModified as any).toDate() : new Date(b.lastModified as any);
       return dateB.getTime() - dateA.getTime();
     });
 
