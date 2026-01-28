@@ -35,6 +35,14 @@ interface ManagedTestCase {
     platform: string;
     priority: 'High' | 'Medium' | 'Low';
     tags: string[];
+    testBedId?: string;
+    createdAt: any;
+}
+
+interface TestBed {
+    id: string;
+    name: string;
+    description: string;
     createdAt: any;
 }
 
@@ -162,10 +170,16 @@ export default function RepositoryPage() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [testCases, setTestCases] = useState<ManagedTestCase[]>([]);
+    const [testBeds, setTestBeds] = useState<TestBed[]>([]);
+    const [selectedTestBedId, setSelectedTestBedId] = useState<string>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [isAddBedDialogOpen, setIsAddBedDialogOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+
+    // Bed Form
+    const [newBed, setNewBed] = useState({ name: '', description: '' });
 
     // --- New: Extraction Studio Mode ---
     const [isExtractionMode, setIsExtractionMode] = useState(false);
@@ -185,16 +199,19 @@ export default function RepositoryPage() {
         steps: '',
         expectedResult: '',
         platform: 'Android TV',
-        priority: 'Medium',
-        tags: ''
+        priority: 'Medium' as const,
+        tags: '',
+        testBedId: ''
     });
 
     // --- Fetch Logic ---
     useEffect(() => {
         if (!user) return;
         setLoading(true);
-        const q = query(collection(db, 'managedTestCases'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+
+        // Fetch Test Cases
+        const qCases = query(collection(db, 'managedTestCases'), orderBy('createdAt', 'desc'));
+        const unsubCases = onSnapshot(qCases, (snapshot) => {
             const fetched = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -202,7 +219,18 @@ export default function RepositoryPage() {
             setTestCases(fetched);
             setLoading(false);
         });
-        return () => unsubscribe();
+
+        // Fetch Test Beds
+        const qBeds = query(collection(db, 'testBeds'), orderBy('createdAt', 'desc'));
+        const unsubBeds = onSnapshot(qBeds, (snapshot) => {
+            const fetched = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as TestBed));
+            setTestBeds(fetched);
+        });
+
+        return () => { unsubCases(); unsubBeds(); };
     }, [user]);
 
     // --- Actions ---
@@ -221,10 +249,27 @@ export default function RepositoryPage() {
             if (!manualCase) {
                 toast({ title: "Saved", description: "Master case added to Secure Library.", className: "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400" });
                 setIsAddDialogOpen(false);
-                setNewCase({ title: '', preconditions: '', steps: '', expectedResult: '', platform: 'Android TV', priority: 'Medium', tags: '' });
+                setNewCase({ title: '', preconditions: '', steps: '', expectedResult: '', platform: 'Android TV', priority: 'Medium', tags: '', testBedId: '' });
             }
         } catch (e) {
             toast({ title: "Error", description: "Failed to create test case.", variant: "destructive" });
+        }
+    };
+
+    const handleCreateTestBed = async () => {
+        if (!newBed.name) return;
+        try {
+            await addDoc(collection(db, 'testBeds'), {
+                ...newBed,
+                createdBy: user?.uid,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+            toast({ title: "Created", description: "New Test Bed added successfully." });
+            setIsAddBedDialogOpen(false);
+            setNewBed({ name: '', description: '' });
+        } catch (e) {
+            toast({ title: "Error", description: "Failed to create test bed.", variant: "destructive" });
         }
     };
 
@@ -247,17 +292,19 @@ export default function RepositoryPage() {
                 const docRef = doc(collection(db, 'managedTestCases'));
                 batch.set(docRef, {
                     ...item,
+                    testBedId: newCase.testBedId,
                     createdBy: user?.uid,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
                 });
             });
             await batch.commit();
-            toast({ title: "Import Complete", description: `Added ${extractedCases.length} AI-generated cases to library.` });
+            toast({ title: "Import Complete", description: `Added ${extractedCases.length} AI-generated cases to ${testBeds.find(b => b.id === newCase.testBedId)?.name || 'library'}.` });
             setIsExtractionMode(false);
             setExtractedCases([]);
             setPrdText('');
         } catch (e) {
+            console.error(e);
             toast({ title: "Error", description: "Batch save failed.", variant: "destructive" });
         }
     };
@@ -267,7 +314,7 @@ export default function RepositoryPage() {
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
         downloadAnchorNode.setAttribute("download", "master_library_export.json");
-        document.body.appendChild(downloadAnchorNode); // required for firefox
+        document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
         toast({ title: "Exported", description: "Library downloaded as JSON." });
@@ -326,7 +373,11 @@ export default function RepositoryPage() {
         }
     };
 
-    const filteredData = testCases.filter(item =>
+    const filteredByBed = selectedTestBedId === 'all'
+        ? testCases
+        : testCases.filter(tc => tc.testBedId === selectedTestBedId);
+
+    const filteredData = filteredByBed.filter(item =>
         item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -374,6 +425,27 @@ export default function RepositoryPage() {
                                 value={prdText}
                                 onChange={(e) => setPrdText(e.target.value)}
                             />
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Component / Feature Name (for AI context)</Label>
+                                    <Input
+                                        placeholder="e.g. Authentication, Shopping Cart..."
+                                        value={newCase.title}
+                                        onChange={(e) => setNewCase({ ...newCase, title: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Target Test Bed</Label>
+                                    <Select value={newCase.testBedId} onValueChange={(v) => setNewCase({ ...newCase, testBedId: v })}>
+                                        <SelectTrigger className="bg-background border-input"><SelectValue placeholder="Select Bed for target" /></SelectTrigger>
+                                        <SelectContent>
+                                            {testBeds.map(bed => (
+                                                <SelectItem key={bed.id} value={bed.id}>{bed.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                             <Button
                                 onClick={runExtraction}
                                 disabled={isGenerating || !prdText}
@@ -477,6 +549,46 @@ export default function RepositoryPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                    {/* TestBed Filter */}
+                    <div className="flex items-center gap-2">
+                        <Label className="text-xs font-bold uppercase text-muted-foreground whitespace-nowrap">Test Bed:</Label>
+                        <Select value={selectedTestBedId} onValueChange={setSelectedTestBedId}>
+                            <SelectTrigger className="w-[180px] h-9 bg-background"><SelectValue placeholder="All Beds" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Beds</SelectItem>
+                                {testBeds.map(bed => (
+                                    <SelectItem key={bed.id} value={bed.id}>{bed.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Dialog open={isAddBedDialogOpen} onOpenChange={setIsAddBedDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="icon" className="h-9 w-9" title="Create New Test Bed">
+                                    <Plus className="w-4 h-4" />
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>New Test Bed</DialogTitle>
+                                    <DialogDescription>Create a collection for specific features or modules.</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label>Bed Name</Label>
+                                        <Input placeholder="e.g. Core Auth, Sanity Suite" value={newBed.name} onChange={e => setNewBed({ ...newBed, name: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Description</Label>
+                                        <Textarea placeholder="What does this test bed cover?" value={newBed.description} onChange={e => setNewBed({ ...newBed, description: e.target.value })} />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button onClick={handleCreateTestBed}>Create Bed</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
                     {/* View Toggles */}
                     <div className="flex items-center bg-muted/50 p-1 rounded-lg border border-border hidden lg:flex">
                         <Button variant="ghost" size="icon" onClick={() => setViewMode('table')} className={`h-8 w-8 rounded-md ${viewMode === 'table' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}>
@@ -553,6 +665,18 @@ export default function RepositoryPage() {
                                     <div className="space-y-2">
                                         <Label className="text-foreground">Tags</Label>
                                         <Input className="bg-background border-input" placeholder="sanity, auth" value={newCase.tags} onChange={e => setNewCase({ ...newCase, tags: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-foreground">Assign to Test Bed</Label>
+                                        <Select value={newCase.testBedId} onValueChange={v => setNewCase({ ...newCase, testBedId: v })}>
+                                            <SelectTrigger className="bg-background border-input"><SelectValue placeholder="Select Bed (Optional)" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No Bed</SelectItem>
+                                                {testBeds.map(bed => (
+                                                    <SelectItem key={bed.id} value={bed.id}>{bed.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
                                 <div className="md:col-span-7 space-y-5">

@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import type { Platform, PlatformDetails, TestCase, TestSession } from '@/types';
 import { db } from '@/lib/firebaseConfig';
-import { doc, collection, setDoc } from 'firebase/firestore';
+import { doc, collection, setDoc, query, getDocs, orderBy } from 'firebase/firestore';
 import {
   Loader2, UploadCloud, ChevronRight, CheckCircle2, Rocket,
   Tv, Smartphone, Monitor, Globe, Gamepad2, Laptop, Tablet, Box
@@ -60,6 +60,8 @@ export default function NewTestSessionPage() {
   const [currentStep, setCurrentStep] = useState<'platform' | 'import' | 'review'>('platform');
   const [platformData, setPlatformData] = useState<PlatformDetails | null>(null);
   const [importedCases, setImportedCases] = useState<TestCase[]>([]);
+  const [testBeds, setTestBeds] = useState<any[]>([]);
+  const [selectedTestBedId, setSelectedTestBedId] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [showLaunchAnimation, setShowLaunchAnimation] = useState(false);
 
@@ -73,6 +75,7 @@ export default function NewTestSessionPage() {
   const handlePlatformSubmit = (data: PlatformFormValues) => {
     setPlatformData(data);
     setCurrentStep('import');
+    fetchTestBeds();
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,6 +127,53 @@ export default function NewTestSessionPage() {
     } finally {
       setIsFileLoading(false);
       if (event.target) event.target.value = '';
+    }
+  };
+
+  const fetchTestBeds = async () => {
+    if (!user) return;
+    try {
+      const q = query(collection(db, 'testBeds'), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      const beds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTestBeds(beds);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSelectTestBed = async (bedId: string) => {
+    setSelectedTestBedId(bedId);
+    setIsFileLoading(true);
+    try {
+      // Fetch cases associated with this bed
+      const q = query(collection(db, 'managedTestCases'), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      const allCases = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const bedCases = (allCases as any[]).filter(c => c.testBedId === bedId);
+
+      const cases: TestCase[] = bedCases.map((tc, index) => ({
+        id: tc.id,
+        orderIndex: index,
+        testBed: bedId,
+        testCaseTitle: tc.title,
+        testSteps: tc.steps,
+        expectedResult: tc.expectedResult,
+        status: 'Untested' as const,
+        lastModified: new Date(),
+      }));
+
+      setImportedCases(cases);
+      setFileName(testBeds.find(b => b.id === bedId)?.name || 'Test Bed');
+      if (cases.length > 0) {
+        setCurrentStep('review');
+      } else {
+        toast({ title: "Empty Bed", description: "No test cases found in this test bed.", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to fetch bed cases.", variant: "destructive" });
+    } finally {
+      setIsFileLoading(false);
     }
   };
 
@@ -307,26 +357,62 @@ export default function NewTestSessionPage() {
             </motion.div>
           )}
 
-          {/* STEP 2: IMPORT IMPORT */}
           {currentStep === 'import' && (
             <motion.div
               key="step2"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-              className="max-w-2xl mx-auto"
+              className="max-w-4xl mx-auto space-y-8"
             >
-              <Card className="rounded-[2.5rem] border-2 border-dashed border-muted-foreground/20 overflow-hidden bg-card/50 hover:bg-card transition-colors">
-                <CardContent className="p-12 flex flex-col items-center justify-center text-center space-y-6 cursor-pointer" onClick={() => document.getElementById('file-upload')?.click()}>
-                  <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
-                    <UploadCloud className="w-10 h-10 text-primary" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-2xl font-bold text-foreground">Upload Mission Brief</h3>
-                    <p className="text-muted-foreground">Drag & Drop .xlsx file here or click to browse</p>
-                  </div>
-                  <Input id="file-upload" type="file" accept=".xlsx" onChange={handleFileChange} className="hidden" />
-                  {isFileLoading && <Loader2 className="animate-spin text-primary w-8 h-8" />}
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Upload Section */}
+                <Card className="rounded-[2.5rem] border-2 border-dashed border-muted-foreground/20 overflow-hidden bg-card/50 hover:bg-card transition-colors">
+                  <CardContent className="p-12 flex flex-col items-center justify-center text-center space-y-6 cursor-pointer" onClick={() => document.getElementById('file-upload')?.click()}>
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                      <UploadCloud className="w-8 h-8 text-primary" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-bold text-foreground">Upload Brief</h3>
+                      <p className="text-muted-foreground text-sm">Use .xlsx mission file</p>
+                    </div>
+                    <Input id="file-upload" type="file" accept=".xlsx" onChange={handleFileChange} className="hidden" />
+                    {isFileLoading && !selectedTestBedId && <Loader2 className="animate-spin text-primary w-6 h-6" />}
+                  </CardContent>
+                </Card>
+
+                {/* Test Bed Section */}
+                <Card className="rounded-[2.5rem] border-2 border-border/50 overflow-hidden bg-card/50">
+                  <CardContent className="p-8 space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500">
+                        <Rocket className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-xl font-bold text-foreground">Select Test Bed</h3>
+                    </div>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                      {testBeds.length === 0 ? (
+                        <p className="text-muted-foreground text-sm py-4">No test beds available in library.</p>
+                      ) : (
+                        testBeds.map(bed => (
+                          <div
+                            key={bed.id}
+                            onClick={() => handleSelectTestBed(bed.id)}
+                            className="p-4 rounded-2xl border border-border/50 bg-background/50 hover:bg-white dark:hover:bg-card hover:border-primary/30 transition-all cursor-pointer group"
+                          >
+                            <div className="flex justify-between items-center text-left">
+                              <div>
+                                <p className="font-bold text-sm group-hover:text-primary transition-colors">{bed.name}</p>
+                                <p className="text-[10px] text-muted-foreground">{bed.description || 'No description'}</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-all" />
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {isFileLoading && selectedTestBedId && <Loader2 className="animate-spin text-primary w-6 h-6 mx-auto" />}
+                  </CardContent>
+                </Card>
+              </div>
               <div className="mt-8 flex justify-center gap-4">
                 <Button variant="ghost" className="rounded-full px-8" onClick={() => setCurrentStep('platform')}>Back</Button>
               </div>

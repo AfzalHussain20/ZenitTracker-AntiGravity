@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
     Rocket, ArrowLeft, CheckCircle2, PlusCircle, ChevronRight,
     Tv, Sparkles, Database, Smartphone, Monitor, Gamepad2, Laptop,
-    Globe, Box, FileDown, Wand2
+    Globe, Box, FileDown, Wand2, FileJson
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
@@ -74,6 +74,61 @@ function parseHtmlToParams(htmlMarkup: string): Record<string, string> {
         }
     }
     return params;
+}
+
+function parseJsonToParams(jsonStr: string): Record<string, string> {
+    try {
+        const obj = JSON.parse(jsonStr);
+        const params: Record<string, string> = {};
+
+        const flatten = (data: any, prefix = '') => {
+            if (data === null || data === undefined) return;
+
+            Object.entries(data).forEach(([key, value]) => {
+                const newKey = prefix ? `${prefix}.${key}` : key;
+
+                if (typeof value === 'object' && value !== null) {
+                    if (Array.isArray(value)) {
+                        params[newKey] = JSON.stringify(value);
+                    } else {
+                        flatten(value, newKey);
+                    }
+                } else {
+                    params[newKey] = String(value);
+                }
+            });
+        };
+
+        flatten(obj);
+        return params;
+    } catch (e) {
+        throw new Error("Invalid JSON");
+    }
+}
+
+const SECTION_PRIORITY: Record<string, number> = {
+    "document_metadata": 1,
+    "event_attributes": 2,
+    "raw_event": 3,
+    "indexed_fields": 4,
+    "search_metadata": 5,
+    "sorting_metadata": 6,
+    "other": 7
+};
+
+function getSection(key: string): string {
+    if (key.startsWith("_source.message.")) return "event_attributes";
+    if (key.startsWith("_source.event.")) return "raw_event";
+    if (key.startsWith("fields.")) return "indexed_fields";
+    if (key.startsWith("highlight.")) return "search_metadata";
+    if (key.startsWith("sort.")) return "sorting_metadata";
+    if (key.startsWith("_") || key === "found" || key === "took") return "document_metadata";
+    return "other";
+}
+
+function getSortScore(key: string): number {
+    const section = getSection(key);
+    return SECTION_PRIORITY[section] || 99;
 }
 
 const getPlatformIcon = (p: string) => {
@@ -174,6 +229,110 @@ function HtmlInputModal({ contentType, adsIncluded, onSave, onCancel }: { conten
     );
 }
 
+function InHouseAnalyticsModal({ onSave }: { onSave: (events: OtherEventData[]) => void }) {
+    const { toast } = useToast();
+    const [jsonAttempted, setJsonAttempted] = useState('');
+    const [jsonPlayed, setJsonPlayed] = useState('');
+    const [jsonClick, setJsonClick] = useState('');
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSave = () => {
+        setIsSaving(true);
+        const newEvents: OtherEventData[] = [];
+        const errors: string[] = [];
+
+        const processField = (name: string, json: string) => {
+            if (!json.trim()) return;
+            try {
+                const params = parseJsonToParams(json);
+                newEvents.push({ name, params });
+            } catch (e) {
+                console.error("JSON Parse Error:", e);
+                errors.push(name);
+            }
+        };
+
+        processField("Content attempted", jsonAttempted);
+        processField("Content played", jsonPlayed);
+        processField("Content click", jsonClick);
+
+        if (errors.length > 0) {
+            toast({ title: 'Error', description: `Invalid JSON in: ${errors.join(', ')}`, variant: 'destructive' });
+            setIsSaving(false);
+            return;
+        }
+
+        if (newEvents.length === 0) {
+            toast({ title: 'Empty', description: 'No data to save.', variant: 'destructive' });
+            setIsSaving(false);
+            return;
+        }
+
+        onSave(newEvents);
+        toast({ title: 'Saved', description: `${newEvents.length} in-house events added.` });
+        setJsonAttempted('');
+        setJsonPlayed('');
+        setJsonClick('');
+        setIsOpen(false);
+        setIsSaving(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-full shadow-sm">
+                    <FileJson className="mr-2 h-4 w-4" /> In-House Analytics
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-background border-border rounded-2xl max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>In-House Analytics Events</DialogTitle>
+                    <DialogDescription>Paste Kafka JSON for the respective events below.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="space-y-2">
+                        <Label className="font-semibold text-foreground">Content attempted</Label>
+                        <Textarea
+                            value={jsonAttempted}
+                            onChange={(e) => setJsonAttempted(e.target.value)}
+                            placeholder='{"event": "attempt", "id": "123"}'
+                            rows={3}
+                            className="bg-background font-mono text-xs"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="font-semibold text-foreground">Content played</Label>
+                        <Textarea
+                            value={jsonPlayed}
+                            onChange={(e) => setJsonPlayed(e.target.value)}
+                            placeholder='{"event": "play", "duration": "50"}'
+                            rows={3}
+                            className="bg-background font-mono text-xs"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="font-semibold text-foreground">Content click</Label>
+                        <Textarea
+                            value={jsonClick}
+                            onChange={(e) => setJsonClick(e.target.value)}
+                            placeholder='{"type": "click", "target": "banner"}'
+                            rows={3}
+                            className="bg-background font-mono text-xs"
+                        />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={isSaving} className="bg-primary text-primary-foreground">
+                        {isSaving ? <Wand2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />} Save
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // --- Main Page Component ---
 function CleverTapTrackerPageComponent() {
     const [step, setStep] = useState<Step>("platform_details");
@@ -250,7 +409,7 @@ function CleverTapTrackerPageComponent() {
         }
 
         /* =========================
-           PER-EVENT SHEETS (PRE-EVENT)
+           PER-EVENT SHEETS (TRANSPOSED)
         ========================= */
         const eventsByName: Record<string, any[]> = {};
 
@@ -263,20 +422,50 @@ function CleverTapTrackerPageComponent() {
         });
 
         Object.entries(eventsByName).forEach(([eventName, events]) => {
+            // 1. Identify and Filter Keys
             const paramKeys = Array.from(
                 new Set(events.flatMap(e => Object.keys(e.params)))
-            ).sort();
+            ).filter(k => k !== "_source.event.original") // Rule 3: Exclude raw event
+                .sort((a, b) => {
+                    const scoreA = getSortScore(a);
+                    const scoreB = getSortScore(b);
+                    if (scoreA !== scoreB) return scoreA - scoreB;
+                    return a.localeCompare(b);
+                });
 
-            const rows = events.map((e: any, idx: number) => ({
-                "Content Type": e.contentType || "N/A",
-                "Instance": e.instance || idx + 1,
-                ...paramKeys.reduce(
-                    (acc, k) => ({ ...acc, [k]: e.params[k] || "" }),
-                    {}
-                ),
-            }));
+            // 2. Prepare Header Row
+            // Rule 1 & 5: If single event, strict "Attribute | Value". If multiple, "Attribute | Instance 1..."
+            const isSingle = events.length === 1;
+            const headerRow = ["Attribute", ...events.map((e, idx) => isSingle ? "Value" : `Instance ${e.instance || idx + 1}`)];
 
-            const ws = XLSX.utils.json_to_sheet(rows);
+            // 3. Prepare Data Rows
+            const dataRows: any[][] = [];
+
+            // Rule 4: No virtual metadata rows like "Content Type" or "Event Name".
+            // Just the flattened attributes.
+
+            paramKeys.forEach(key => {
+                const values = events.map(e => e.params[key] || "na"); // Rule 4: Preserve "na" or default to it? 
+                // Using "na" for missing might be noisy if just one instance has it. 
+                // But request says "Preserve 'na' as 'na', Convert null -> 'null'".
+                // Assuming the extraction put "na" or "null" string in params. 
+                // If key is missing entirely from one instance, "" is safer in Excel.
+                const rowValues = events.map(e => {
+                    const val = e.params[key];
+                    return val === undefined ? "" : val;
+                });
+
+                dataRows.push([key.replace("_source.message.", ""), ...rowValues]);
+            });
+
+            // 4. Create Sheet
+            const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+
+            // Style columns
+            const colWidths = [{ wch: 45 }]; // Attribute
+            events.forEach(() => colWidths.push({ wch: 30 })); // Values
+            ws['!cols'] = colWidths;
+
             XLSX.utils.book_append_sheet(
                 wb,
                 ws,
@@ -296,7 +485,7 @@ function CleverTapTrackerPageComponent() {
             "Content Type": e.contentType || "N/A",
             "Instance": e.instance || idx + 1,
             ...masterKeys.reduce(
-                (acc, k) => ({ ...acc, [k]: e.params[k] || "" }),
+                (acc, k) => ({ ...acc, [k.replace("_source.message.", "")]: e.params[k] || "" }),
                 {}
             ),
         }));
@@ -416,6 +605,7 @@ function CleverTapTrackerPageComponent() {
                                     </div>
                                     <div className="flex gap-3">
                                         <OtherEventModal onSave={(e) => setOtherEvents(prev => [...prev, e])} />
+                                        <InHouseAnalyticsModal onSave={(events) => setOtherEvents(prev => [...prev, ...events])} />
                                         <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white shadow-lg rounded-full px-6"><FileDown className="mr-2 h-4 w-4" /> Export Report</Button>
                                         <Button variant="ghost" onClick={() => setStep('config')} className="rounded-full">Back</Button>
                                     </div>

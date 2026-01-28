@@ -6,7 +6,6 @@ import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import TopLoader from '@/components/ui/top-loader';
-import PwaInstaller from '@/components/pwa-installer';
 import ServiceWorkerRegistrar from '@/components/service-worker-registrar';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -36,7 +35,6 @@ export function Providers({ children }: { children: ReactNode }) {
                 </Suspense>
                 {children}
                 <Toaster />
-                <PwaInstaller />
                 <ServiceWorkerRegistrar />
             </AuthProvider>
         </ThemeProvider>

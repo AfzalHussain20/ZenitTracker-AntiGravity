@@ -22,7 +22,9 @@ import HistoricalPerformanceChart from '@/components/dashboard/HistoricalPerform
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import CleverTapPreview from '@/components/dashboard/CleverTapPreview';
 import LocatorStudioPreview from '@/components/dashboard/LocatorStudioPreview';
+import { AppsHubSection } from '@/components/dashboard/AppsHubSection';
 import { ResponsiveContainer, PieChart as RePie, Pie, Cell } from 'recharts';
+import NotificationCenter from '@/components/dashboard/NotificationCenter';
 
 const getValidDate = (d: any): Date | null => {
     if (!d) return null;
@@ -314,7 +316,7 @@ export default function DashboardPage() {
                 <div className="xl:col-span-3 space-y-6">
                     <TesterProfileCard user={user!} />
                     <div className="glass-panel rounded-xl p-5 border-border/60 bg-card/60">
-                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-foreground"><Layers className="w-4 h-4 text-primary" /> Integration Suite</h3>
+                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-foreground"><Layers className="w-4 h-4 text-primary" /> Zenit Tools</h3>
                         <div className="space-y-4">
                             <CleverTapPreview />
                             <LocatorStudioPreview />
@@ -334,35 +336,17 @@ export default function DashboardPage() {
                     <div className="h-[250px]"><OverallStatsWidget sessions={sessions} /></div>
                     <div className="h-auto"><PlatformHealthWidget sessions={sessions} /></div>
 
-                    {/* Compact Archives Widget */}
-                    <div className="glass-panel p-5 rounded-xl border-border/60 bg-card/60">
-                        <div className="flex items-center gap-2 mb-4">
-                            <FolderCheck className="w-4 h-4 text-primary" />
-                            <h3 className="text-sm font-semibold text-foreground">Mission Archives</h3>
-                        </div>
-                        <div className="space-y-2">
-                            {completedSessions.length === 0 ? <p className="text-xs text-muted-foreground">No archived missions.</p> : completedSessions.slice(0, 3).map(session => (
-                                <Link key={session.id} href={`/dashboard/session/${session.id}/results`}>
-                                    <div className="p-3 rounded-lg bg-secondary/30 hover:bg-secondary transition-colors border border-transparent hover:border-primary/20 cursor-pointer flex justify-between items-center group">
-                                        <div>
-                                            <p className="text-xs font-semibold group-hover:text-primary transition-colors text-foreground">{session.platformDetails.platformName}</p>
-                                            <p className="text-[10px] text-muted-foreground">{getValidDate(session.createdAt)?.toLocaleDateString()}</p>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                            <span className="text-xs font-mono text-muted-foreground">{session.summary?.pass} Pass</span>
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                        <Button asChild variant="ghost" size="sm" className="w-full text-xs mt-3 h-auto py-1 text-muted-foreground hover:text-primary">
-                            <Link href="/dashboard?tab=completed">View All Logs <ChevronsRight className="w-3 h-3 ml-1" /></Link>
-                        </Button>
+                    {/* Notification Center */}
+                    <div className="h-auto">
+                        <NotificationCenter />
                     </div>
+
                     <RepositoryPreview />
                 </div>
             </div>
+
+            {/* Zenit Apps Hub Section */}
+            <AppsHubSection className="pt-8 border-t border-border/50" />
 
             {/* Active Sessions Deck */}
             {activeSessions.length > 0 && (
