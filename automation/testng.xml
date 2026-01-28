@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Zenit Automation Suite" verbose="1">
+    <test name="SunNxt Tests">
+        <classes>
+            <class name="com.zenit.SunNxtTest"/>
+        </classes>
+    </test>
+</suite>

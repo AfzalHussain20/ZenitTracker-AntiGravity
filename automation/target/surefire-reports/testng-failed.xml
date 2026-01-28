@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Failed suite [Zenit Automation Suite]" guice-stage="DEVELOPMENT" verbose="0">
+  <test thread-count="5" name="SunNxt Tests(failed)" verbose="0">
+    <classes>
+      <class name="com.zenit.SunNxtTest">
+        <methods>
+          <include name="testSunNxtSignup" invocation-numbers="0"/>
+          <include name="setup"/>
+          <include name="teardown"/>
+        </methods>
+      </class> <!-- com.zenit.SunNxtTest -->
+    </classes>
+  </test> <!-- SunNxt Tests(failed) -->
+</suite> <!-- Failed suite [Zenit Automation Suite] -->

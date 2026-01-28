@@ -1,0 +1,64 @@
+﻿Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+  Γû▓ Next.js 14.2.35
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/31) ...
+   Generating static pages (7/31) 
+   Generating static pages (15/31) 
+   Generating static pages (23/31) 
+ Γ£ô Generating static pages (31/31)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size     First Load JS
+Γöî Γùï /                                       3.31 kB         247 kB
+Γö£ Γùï /_not-found                             153 B          87.7 kB
+Γö£ Γùï /about                                  4.21 kB         134 kB
+Γö£ ╞Æ /api/automation/run                     0 B                0 B
+Γö£ ╞Æ /api/extract-prd                        0 B                0 B
+Γö£ Γùï /apps                                   2.88 kB         143 kB
+Γö£ Γùï /automation                             6.86 kB         101 kB
+Γö£ Γùï /dashboard                              22.9 kB         544 kB
+Γö£ Γùï /dashboard/clevertap-tracker            10.3 kB         342 kB
+Γö£ Γùï /dashboard/locator-studio               8.14 kB         138 kB
+Γö£ Γùï /dashboard/new-session                  11.1 kB         416 kB
+Γö£ Γùï /dashboard/repository                   14.2 kB         296 kB
+Γö£ ╞Æ /dashboard/session/[sessionId]          13.9 kB         291 kB
+Γö£ ╞Æ /dashboard/session/[sessionId]/results  6.13 kB         320 kB
+Γö£ Γùï /dashboard/sessions                     4.45 kB         285 kB
+Γö£ Γùï /keepr                                  13.4 kB         400 kB
+Γö£ Γùï /keepr/audit-log                        4.63 kB         264 kB
+Γö£ Γùï /keepr/my-devices                       3.93 kB         263 kB
+Γö£ Γùï /keepr/team                             3.85 kB         263 kB
+Γö£ Γùï /login                                  5.01 kB         245 kB
+Γö£ Γùï /profile                                8.9 kB          252 kB
+Γö£ Γùï /signup                                 4.44 kB         245 kB
+Γö£ Γùï /team                                   9.11 kB         350 kB
+Γö£ Γùï /test-suite                             2.84 kB         143 kB
+Γö£ Γùï /test-suite/plans                       3.29 kB         263 kB
+Γö£ ╞Æ /test-suite/plans/[id]                  10.1 kB         257 kB
+Γö£ Γùï /test-suite/plans/new                   5.29 kB         271 kB
+Γö£ Γùï /test-suite/runs                        4.79 kB         135 kB
+Γö£ Γùï /wrklog                                 5.87 kB         265 kB
+Γö£ Γùï /wrklog/analytics                       4.72 kB         264 kB
+Γö£ Γùï /wrklog/calendar                        4.97 kB         294 kB
+Γöö Γùï /wrklog/projects                        4.5 kB          264 kB
++ First Load JS shared by all               87.6 kB
+  Γö£ chunks/2117-1a29d3e533e5b2b3.js         31.9 kB
+  Γö£ chunks/fd9d1056-4c7c47cd4dd0ca36.js     53.6 kB
+  Γöö other shared chunks (total)             2.04 kB
+
+
+╞Æ Middleware                                25.8 kB
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+
