@@ -690,7 +690,7 @@ function NAValidationReportModal({ plans, rules }: { plans: InHousePlan[], rules
             <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col bg-background">
                 <DialogHeader>
                     <DialogTitle>NA Attribute Validation</DialogTitle>
-                    <DialogDescription>Comparing actual JSON against 'In-House_Analytics_na_Validation_Sheet.xlsx'.</DialogDescription>
+                    <DialogDescription>Comparing actual JSON against &apos;In-House_Analytics_na_Validation_Sheet.xlsx&apos;.</DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto py-4 space-y-4">
@@ -734,7 +734,7 @@ function NAValidationReportModal({ plans, rules }: { plans: InHousePlan[], rules
                                                         {res.naMismatches.map(m => (
                                                             <div key={m.attribute} className="text-xs flex justify-between bg-red-50 p-1 rounded">
                                                                 <span className="font-medium text-red-700">{m.attribute}</span>
-                                                                <span className="text-red-500 font-mono">"{m.actual}"</span>
+                                                                <span className="text-red-500 font-mono">&quot;{m.actual}&quot;</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -926,8 +926,8 @@ function CleverTapTrackerPageComponent() {
                 // Row 2: [Event 1] [Event 2] [Event 3] ...
                 // Row 3+: Attribute | Value | Attribute | Value ...
 
-                // To make it readable, we'll create a vertical stack of "Comparisons" per Title.
-                // Title: <Title Name>
+                // To make it readable, we will create a vertical stack of Comparisons per Title.
+                // Title: Title Name
                 // [Event 1] | | [Event 2] | | [Event 3]
                 // Attr | Val | Attr | Val | Attr | Val
 

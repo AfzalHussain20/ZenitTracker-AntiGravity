@@ -221,7 +221,7 @@ export default function AutomationPage() {
                         {logs.map((log, i) => (
                             <div key={i} className="flex gap-3 mb-1 break-words">
                                 <span className="text-zinc-600 shrink-0 select-none">
-                                    {new Date().toLocaleTimeString('en-US', { hour12: false })}
+                                    {new Date().toLocaleTimeString("en-US", { hour12: false })}
                                 </span>
                                 <span className={
                                     log.includes('[ERROR]') ? 'text-red-400' :

@@ -63,7 +63,7 @@ const SessionCard = ({ session }: { session: TestSession }) => {
                                 {createdAt ? format(createdAt, "PPP") : 'No date'}
                             </CardDescription>
                         </div>
-                         <TooltipProvider>
+                        <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger>
                                     <div className="relative h-12 w-12">
@@ -103,7 +103,7 @@ const SessionCard = ({ session }: { session: TestSession }) => {
                         <p className="font-semibold text-orange-500">Known:</p><p className="text-right">{summary.failKnown}</p>
                         <p className="font-semibold text-muted-foreground">N/A:</p><p className="text-right">{summary.na}</p>
                     </div>
-                     {isAborted && (
+                    {isAborted && (
                         <div className="mt-2 flex items-center gap-2 text-xs text-amber-500 p-1.5 bg-amber-500/10 rounded-md">
                             <ArchiveX className="h-3 w-3" />
                             <span>Paused</span>
@@ -124,155 +124,154 @@ const SessionCard = ({ session }: { session: TestSession }) => {
 
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-  
-  const [sessions, setSessions] = useState<TestSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    if (!user) {
-        setLoading(false);
-        return;
-    }
-    
-    setLoading(true);
-    const sessionsQuery = query(
-        collection(db, 'testSessions'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-    );
+    const { user } = useAuth();
 
-    const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
-        const fetchedSessions = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                createdAt: getValidDate(data.createdAt),
-                updatedAt: getValidDate(data.updatedAt)
-            } as TestSession;
+    const [sessions, setSessions] = useState<TestSession[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        const sessionsQuery = query(
+            collection(db, 'testSessions'),
+            where('userId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
+            const fetchedSessions = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: getValidDate(data.createdAt),
+                    updatedAt: getValidDate(data.updatedAt)
+                } as TestSession;
+            });
+            setSessions(fetchedSessions);
+            setLoading(false);
+        }, (err) => {
+            console.error("Failed to fetch sessions:", err);
+            setLoading(false);
         });
-        setSessions(fetchedSessions);
-        setLoading(false);
-    }, (err) => {
-        console.error("Failed to fetch sessions:", err);
-        setLoading(false);
-    });
 
-    return () => unsubscribe();
+        return () => unsubscribe();
 
-  }, [user]);
+    }, [user]);
 
-  const { activeSessions, completedSessions } = useMemo(() => {
-    const active = sessions.filter(s => s.status === 'In Progress' || s.status === 'Aborted');
-    const completed = sessions.filter(s => s.status === 'Completed');
-    return { activeSessions: active, completedSessions: completed };
-  }, [sessions]);
+    const { activeSessions, completedSessions } = useMemo(() => {
+        const active = sessions.filter(s => s.status === 'In Progress' || s.status === 'Aborted');
+        const completed = sessions.filter(s => s.status === 'Completed');
+        return { activeSessions: active, completedSessions: completed };
+    }, [sessions]);
 
 
-  if (loading) {
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-20rem)]">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="sr-only">Loading dashboard...</p>
+            </div>
+        );
+    }
+
     return (
-      <div className="flex justify-center items-center h-[calc(100vh-20rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="sr-only">Loading dashboard...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
-            <div>
-                 <h1 className="text-3xl md:text-4xl font-headline font-bold text-foreground">Welcome Back, {user?.displayName?.split(' ')[0] || 'Tester'}!</h1>
-                 <p className="text-muted-foreground mt-2">Here's your quality command center. Ready to start testing?</p>
-            </div>
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="flex gap-4"
-            >
-                <ExportDataButton userId={user?.uid || null} />
-                <StarBorder>
-                    <Button asChild size="lg" className="h-12 px-6 text-base">
-                        <Link href="/dashboard/new-session">
-                            <PlusCircle />
-                            New Session
-                        </Link>
-                    </Button>
-                </StarBorder>
-            </motion.div>
-        </div>
-
-        {/* Top Section */}
-        <div className="space-y-6">
-            <DashboardKPIRow sessions={sessions} />
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Left Column */}
-                <div className="lg:col-span-3 flex flex-col gap-6">
-                    <TesterProfileCard user={user!} />
-                    <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
-                        <CardHeader className="pb-4">
-                            <CardTitle className="flex items-center gap-3"><FolderCheck className="text-primary"/>Completed Sessions</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                        {completedSessions.length > 0 ? (
-                                completedSessions.slice(0, 2).map(session => <SessionCard key={session.id} session={session} />)
-                            ) : (
-                            <div className="text-center text-muted-foreground py-10">
-                                <p>No completed sessions yet.</p>
-                            </div>
-                            )}
-                        </CardContent>
-                        {completedSessions.length > 2 && (
-                        <CardFooter>
-                            <Button asChild variant="outline" className="w-full">
-                            <Link href="/dashboard/sessions?tab=completed">View All Completed</Link>
-                            </Button>
-                        </CardFooter>
-                        )}
-                    </Card>
-                    <RepositoryPreview />
+        <div className="space-y-6 max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
+                <div>
+                    <h1 className="text-3xl md:text-4xl font-headline font-bold text-foreground">Welcome Back, {user?.displayName?.split(' ')[0] || 'Tester'}!</h1>
+                    <p className="text-muted-foreground mt-2">Here&apos;s your quality command center. Ready to start testing?</p>
                 </div>
-
-                {/* Center Column */}
-                <div className="lg:col-span-6 flex flex-col gap-6">
-                    <HistoricalPerformanceChart sessions={sessions} />
-                    <RecentActivity sessions={sessions} />
-                </div>
-
-                {/* Right Column */}
-                <div className="lg:col-span-3 flex flex-col gap-6">
-                    <OverallStatsChart sessions={sessions} />
-                    <PlatformBubbleChart sessions={sessions} />
-                    <LocatorStudioPreview />
-                    <CleverTapPreview />
-                    <TeamPerformancePreview />
-                </div>
-            </div>
-        </div>
-
-        {/* Bottom Full-Width Section */}
-        {activeSessions.length > 0 && (
-            <div className="space-y-4 pt-6">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-headline font-bold text-foreground flex items-center gap-3">
-                        <FolderClock className="text-primary"/> Active Sessions
-                    </h2>
-                    {activeSessions.length > 4 && (
-                        <Button asChild variant="outline">
-                            <Link href="/dashboard/sessions?tab=active">View All Active Sessions</Link>
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="flex gap-4"
+                >
+                    <ExportDataButton userId={user?.uid || null} />
+                    <StarBorder>
+                        <Button asChild size="lg" className="h-12 px-6 text-base">
+                            <Link href="/dashboard/new-session">
+                                <PlusCircle />
+                                New Session
+                            </Link>
                         </Button>
-                    )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {activeSessions.slice(0, 4).map(session => <SessionCard key={session.id} session={session} />)}
+                    </StarBorder>
+                </motion.div>
+            </div>
+
+            {/* Top Section */}
+            <div className="space-y-6">
+                <DashboardKPIRow sessions={sessions} />
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left Column */}
+                    <div className="lg:col-span-3 flex flex-col gap-6">
+                        <TesterProfileCard user={user!} />
+                        <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
+                            <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center gap-3"><FolderCheck className="text-primary" />Completed Sessions</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {completedSessions.length > 0 ? (
+                                    completedSessions.slice(0, 2).map(session => <SessionCard key={session.id} session={session} />)
+                                ) : (
+                                    <div className="text-center text-muted-foreground py-10">
+                                        <p>No completed sessions yet.</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                            {completedSessions.length > 2 && (
+                                <CardFooter>
+                                    <Button asChild variant="outline" className="w-full">
+                                        <Link href="/dashboard/sessions?tab=completed">View All Completed</Link>
+                                    </Button>
+                                </CardFooter>
+                            )}
+                        </Card>
+                        <RepositoryPreview />
+                    </div>
+
+                    {/* Center Column */}
+                    <div className="lg:col-span-6 flex flex-col gap-6">
+                        <HistoricalPerformanceChart sessions={sessions} />
+                        <RecentActivity sessions={sessions} />
+                    </div>
+
+                    {/* Right Column */}
+                    <div className="lg:col-span-3 flex flex-col gap-6">
+                        <OverallStatsChart sessions={sessions} />
+                        <PlatformBubbleChart sessions={sessions} />
+                        <LocatorStudioPreview />
+                        <CleverTapPreview />
+                        <TeamPerformancePreview />
+                    </div>
                 </div>
             </div>
-        )}
-    </div>
-  );
+
+            {/* Bottom Full-Width Section */}
+            {activeSessions.length > 0 && (
+                <div className="space-y-4 pt-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-headline font-bold text-foreground flex items-center gap-3">
+                            <FolderClock className="text-primary" /> Active Sessions
+                        </h2>
+                        {activeSessions.length > 4 && (
+                            <Button asChild variant="outline">
+                                <Link href="/dashboard/sessions?tab=active">View All Active Sessions</Link>
+                            </Button>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {activeSessions.slice(0, 4).map(session => <SessionCard key={session.id} session={session} />)}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
-    

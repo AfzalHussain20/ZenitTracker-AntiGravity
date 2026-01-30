@@ -180,7 +180,7 @@ export default function PlanDetailsPage() {
                                     <Zap className="w-5 h-5 text-blue-500 shrink-0" />
                                     <div>
                                         <h5 className="text-sm font-semibold">Automation Candidate</h5>
-                                        <p className="text-xs text-muted-foreground">"Login Validation" has been stable for 30 runs. Ready for auto-scripting.</p>
+                                        <p className="text-xs text-muted-foreground">&quot;Login Validation&quot; has been stable for 30 runs. Ready for auto-scripting.</p>
                                     </div>
                                 </div>
                             </CardContent>

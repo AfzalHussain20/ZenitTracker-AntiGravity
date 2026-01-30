@@ -60,7 +60,7 @@ export default function AppHeader() {
       setQuoteIndex((prev) => (prev + 1) % quotes.length);
     }, 8000);
     return () => clearInterval(interval);
-  }, []);
+  }, [quotes.length]);
 
   const handleLogout = async () => {
     await signOut(auth);
