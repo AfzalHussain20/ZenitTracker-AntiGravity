@@ -919,7 +919,7 @@ export default function KeeprPage() {
                             <Box className="w-8 h-8 text-slate-300" />
                         </div>
                         <h3 className="font-semibold text-lg text-slate-900 dark:text-white">No devices found</h3>
-                        <p className="text-slate-500 max-w-xs mx-auto text-sm mt-1">We couldn't find any devices matching your search or filters.</p>
+                        <p className="text-slate-500 max-w-xs mx-auto text-sm mt-1">We couldn&apos;t find any devices matching your search or filters.</p>
                         <Button
                             variant="link"
                             onClick={() => { setSearchTerm(''); setFilterStatus('all'); }}
