@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Play, Terminal, Activity, Users, Globe, Lock, Sliders, Layers,
     Wifi, Server, ArrowRight, StopCircle, CheckCircle2, AlertCircle
@@ -23,23 +23,7 @@ export default function AutomationPage() {
         setMounted(true);
     }, []);
 
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-        if (isRunning || status === 'running') {
-            interval = setInterval(async () => {
-                await fetchLogs();
-            }, 1000);
-        }
-        return () => clearInterval(interval);
-    }, [isRunning, status]);
-
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-    }, [logs]);
-
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async () => {
         try {
             const res = await fetch('/api/automation/run');
             const data = await res.json();
@@ -51,7 +35,23 @@ export default function AutomationPage() {
         } catch (e) {
             console.error("Failed to fetch logs", e);
         }
-    };
+    }, [status]);
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isRunning || status === 'running') {
+            interval = setInterval(async () => {
+                await fetchLogs();
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [isRunning, status, fetchLogs]);
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [logs]);
 
     const handleStart = async () => {
         setIsRunning(true);

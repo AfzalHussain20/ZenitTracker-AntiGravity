@@ -106,7 +106,7 @@ export default function TestSessionPage() {
       } catch (error) { toast({ title: "Error", description: "Failed to load session." }); } finally { setIsLoading(false); }
     };
     fetchSessionData();
-  }, [sessionId, user, router]);
+  }, [sessionId, user, router, toast]);
 
   const currentTestCase = session?.testCases[currentTestCaseIndex];
   const untestedCasesCount = session?.testCases.filter(tc => tc.status === 'Untested').length || 0;

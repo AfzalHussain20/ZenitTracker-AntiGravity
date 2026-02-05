@@ -333,7 +333,7 @@ function InHouseAnalyticsModal({ onSave, initialPlans = [] }: { onSave: (plans: 
             setPlans(initialPlans);
             setActivePlanId(initialPlans[0]?.id || null);
         }
-    }, [isOpen, initialPlans.length]);
+    }, [isOpen, initialPlans.length, initialPlans]);
 
     // Common Titles Helper (Clone Logic)
     const [cloneSourceId, setCloneSourceId] = useState<string | null>(null);
@@ -349,7 +349,7 @@ function InHouseAnalyticsModal({ onSave, initialPlans = [] }: { onSave: (plans: 
         if (plans.length > 0 && !cloneSourceId) {
             setCloneSourceId(plans[plans.length - 1].id);
         }
-    }, [plans.length, cloneSourceId]);
+    }, [plans.length, plans, cloneSourceId]);
 
     // Add New Sheet
     const handleAddSheet = () => {
@@ -1081,7 +1081,7 @@ function QuickNAValidator({ rules }: { rules: Record<string, string[]> }) {
                                             <ul className="list-disc list-inside text-orange-600 text-[10px] space-y-0.5">
                                                 {result.extraAttributes.map(a => (
                                                     <li key={a.attribute} className="truncate" title={a.attribute}>
-                                                        {a.attribute}: <span className="opacity-70 italic">"{a.value}"</span>
+                                                        {a.attribute}: <span className="opacity-70 italic">&quot;{a.value}&quot;</span>
                                                     </li>
                                                 ))}
                                             </ul>
@@ -1108,7 +1108,7 @@ function QuickNAValidator({ rules }: { rules: Record<string, string[]> }) {
                                                 {result.formatErrors.filter(e => e.type === 'INVALID_NA').map((err, i) => (
                                                     <div key={i} className="text-[9px] bg-red-50 p-1 rounded border border-red-100 flex flex-col">
                                                         <span className="text-red-700 font-bold">{err.attribute}</span>
-                                                        <span className="text-red-500 italic">"{err.value}"</span>
+                                                        <span className="text-red-500 italic">&quot;{err.value}&quot;</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1188,7 +1188,7 @@ function CleverTapTrackerPageComponent() {
         };
 
         tryFetch(0);
-    }, []);
+    }, [toast]);
 
     const handlePlatformDetailsSubmit = (data: PlatformFormValues) => { setPlatformData(data); setStep("config"); };
     const handleNextStep = () => {
