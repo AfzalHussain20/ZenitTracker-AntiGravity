@@ -10,8 +10,8 @@ export async function middleware(request: NextRequest) {
   const sessionToken = request.cookies.get('firebase-auth-session')?.value;
 
   // Define routes that are considered "public" and do not require authentication.
-  const publicRoutes = ['/login', '/signup'];
-  
+  const publicRoutes = ['/login', '/signup', '/forgot-password'];
+
   const isPublicRoute = publicRoutes.includes(pathname);
 
   // The root path '/' should now redirect based on auth status.
@@ -22,7 +22,7 @@ export async function middleware(request: NextRequest) {
     // If no token, and trying to access root, go to login.
     return NextResponse.redirect(new URL('/login', request.url));
   }
-  
+
   // If the user has a session token and is trying to access a public auth page (like login/signup),
   // redirect them to the dashboard.
   if (sessionToken && isPublicRoute) {
@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
   if (!sessionToken && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
-  
+
   // If none of the above conditions are met, allow the request to proceed.
   return NextResponse.next();
 }

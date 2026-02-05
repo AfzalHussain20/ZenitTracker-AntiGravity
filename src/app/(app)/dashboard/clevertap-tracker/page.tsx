@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
     Rocket, ArrowLeft, CheckCircle2, PlusCircle, ChevronRight,
     Tv, Sparkles, Database, Smartphone, Monitor, Gamepad2, Laptop,
-    Globe, Box, FileDown, Wand2, FileJson, Trash2, Layers
+    Globe, Box, FileDown, Wand2, FileJson, Trash2, Layers, Zap
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -80,7 +80,18 @@ function parseHtmlToParams(htmlMarkup: string): Record<string, string> {
 
 function parseJsonToParams(jsonStr: string): Record<string, string> {
     try {
-        const obj = JSON.parse(jsonStr);
+        let obj = JSON.parse(jsonStr);
+
+        // Smart Detection: If this is an Elasticsearch/Kibana export, 
+        // prioritize the 'fields' or '_source.fields' block which contains the actual analytics.
+        if (obj._source && obj._source.fields) {
+            obj = obj._source.fields;
+        } else if (obj.fields && typeof obj.fields === 'object' && !Array.isArray(obj.fields)) {
+            obj = obj.fields;
+        } else if (obj._source) {
+            obj = obj._source;
+        }
+
         const params: Record<string, string> = {};
 
         const flatten = (data: any, prefix = '') => {
@@ -238,7 +249,7 @@ interface InHouseEvent {
     params: Record<string, string>;
 }
 
-// Utility to clean attribute names from all possible prefixes
+// Utility to clean attribute names from all possible prefixes and normalize to lowercase
 function cleanAttributeName(attrName: string): string {
     let cleaned = attrName;
 
@@ -267,7 +278,19 @@ function cleanAttributeName(attrName: string): string {
         }
     }
 
-    return cleaned;
+    return cleaned.toLowerCase();
+}
+
+function isInvalidNAValue(v: any): boolean {
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    if (s === "") return true;
+    const lower = s.toLowerCase();
+    // Flag if it's some form of 'na' but NOT exactly 'na'
+    if (lower === "na" && s !== "na") return true;
+    // Flag words 'null', 'undefined'
+    if (lower === "null" || lower === "undefined") return true;
+    return false;
 }
 
 interface NAValidationResult {
@@ -275,8 +298,8 @@ interface NAValidationResult {
     titleName: string;
     eventName: string;
     missingAttributes: string[];
-    extraAttributes: string[];
-    naMismatches: { attribute: string; actual: string }[];
+    extraAttributes: { attribute: string; value: string }[];
+    formatErrors: { attribute: string; value: string; type: 'CAPITAL_ATTR' | 'INVALID_NA' }[];
     status: "PASS" | "FAIL";
 }
 
@@ -402,6 +425,92 @@ function InHouseAnalyticsModal({ onSave, initialPlans = [] }: { onSave: (plans: 
         }));
     };
 
+    const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const ab = event.target?.result as ArrayBuffer;
+                const wb = XLSX.read(ab, { type: 'array' });
+
+                let targetSheet = wb.SheetNames.find(n => n.toLowerCase().includes("detailed"));
+                if (!targetSheet) targetSheet = wb.SheetNames.find(n => n.toLowerCase().includes("na validation"));
+                if (!targetSheet) {
+                    targetSheet = wb.SheetNames.find(name => {
+                        const json = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1 }) as any[][];
+                        const header = json[0] || [];
+                        return header.some(h => String(h).toLowerCase().includes("attribute"));
+                    });
+                }
+                if (!targetSheet) targetSheet = wb.SheetNames[0];
+
+                const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[targetSheet]);
+                const importedPlans: InHousePlan[] = [];
+
+                // Group by Sheet -> Title -> Event
+                const planMap: Record<string, Record<string, Record<string, Record<string, string>>>> = {};
+
+                data.forEach(row => {
+                    const sName = row.Sheet || row["Sheet Name"] || row["Domain/Sheet"] || row["Domain"] || "Imported Plan";
+                    const tName = row.Title || row["Title Name"] || "Imported Title";
+                    const eName = row.Event || row["Event Name"] || "";
+                    const attr = row.Attribute || row["Parameter Name"] || row["Key"] || row["Parameter"];
+
+                    // Explicitly handle alternate headers (In-House Export uses 'Actual Value')
+                    const rawVal = row["Captured Value"] ?? row["Actual Value"] ?? row["Value"] ?? row["Data"] ?? row["Actual"];
+                    const val = (rawVal === null || rawVal === undefined) ? "" : String(rawVal);
+
+                    if (!eName || !attr || attr === "--- HEADER ---" || attr === "All Rules" || val.includes("MISSING")) return;
+
+                    if (!planMap[sName]) planMap[sName] = {};
+                    if (!planMap[sName][tName]) planMap[sName][tName] = {};
+                    if (!planMap[sName][tName][eName]) planMap[sName][tName][eName] = {};
+
+                    planMap[sName][tName][eName][attr] = val;
+                });
+
+                Object.entries(planMap).forEach(([sName, titles]) => {
+                    const planTitles: InHouseTitle[] = Object.entries(titles).map(([tName, events]) => {
+                        const titleEvents: InHouseEvent[] = Object.entries(events).map(([eventName, params]) => {
+                            return {
+                                eventName: eventName,
+                                json: JSON.stringify(params, null, 2),
+                                params: params
+                            };
+                        });
+
+                        // Ensure standard event types are present even if not in Excel
+                        IN_HOUSE_EVENT_TYPES.forEach(type => {
+                            if (!titleEvents.find(e => e.eventName === type)) {
+                                titleEvents.push({ eventName: type, json: '', params: {} });
+                            }
+                        });
+
+                        return { id: Math.random().toString(), name: tName, events: titleEvents };
+                    });
+                    importedPlans.push({
+                        id: Math.random().toString(),
+                        sheetName: sName,
+                        titles: planTitles
+                    });
+                });
+
+                if (importedPlans.length > 0) {
+                    setPlans(prev => [...prev, ...importedPlans]);
+                    setActivePlanId(importedPlans[0].id);
+                    toast({ title: "Import Successful", description: `Recovered ${importedPlans.length} plans from "${targetSheet}".` });
+                } else {
+                    toast({ title: "No Data Found", description: "Checked the sheet but couldn't identify any valid events." });
+                }
+            } catch (err) {
+                toast({ title: "Import Failed", description: "Could not parse Excel file.", variant: "destructive" });
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
     const handleSaveAll = () => {
         if (plans.length === 0) {
             toast({ title: "No Sheets", description: "Please add at least one Sheet (Plan).", variant: "destructive" });
@@ -486,6 +595,17 @@ function InHouseAnalyticsModal({ onSave, initialPlans = [] }: { onSave: (plans: 
                                 className="font-semibold bg-background"
                             />
                             <Button onClick={handleAddSheet} disabled={!newSheetName.trim()} className="shrink-0"><PlusCircle className="mr-2 h-4 w-4" /> Add Sheet</Button>
+                            <div className="relative">
+                                <Button variant="outline" className="shrink-0 border-indigo-200 text-indigo-600 hover:bg-indigo-50">
+                                    <FileDown className="mr-2 h-4 w-4 rotate-180" /> Import Report Excel
+                                </Button>
+                                <input
+                                    type="file"
+                                    accept=".xlsx, .xls"
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                    onChange={handleImportExcel}
+                                />
+                            </div>
                         </div>
 
                         {/* Sheets Carousel/List */}
@@ -603,57 +723,53 @@ function NAValidationReportModal({ plans, rules }: { plans: InHousePlan[], rules
             plan.titles.forEach(title => {
                 title.events.forEach(event => {
                     const expectedAttrs = rules[event.eventName] || [];
-                    if (expectedAttrs.length === 0) return; // Skip events with no rules
+                    if (expectedAttrs.length === 0) return;
 
-                    // Clean all attribute names using our utility
-                    const actualAttrs = Object.keys(event.params)
-                        .filter(k => {
-                            const cleaned = cleanAttributeName(k);
-                            return cleaned && cleaned !== 'original'; // Skip event.original
-                        })
-                        .map(k => cleanAttributeName(k));
+                    // Capture all actual attributes and check formatting/values
+                    const actualParams: Record<string, string> = {};
+                    const formatErrors: { attribute: string; value: string; type: 'CAPITAL_ATTR' | 'INVALID_NA' }[] = [];
+
+                    Object.entries(event.params).forEach(([k, v]) => {
+                        const cleanedKey = cleanAttributeName(k);
+                        if (!cleanedKey || cleanedKey === 'original') return;
+
+                        // 1. Check for Capital Letters in raw key name
+                        if (/[A-Z]/.test(k)) {
+                            formatErrors.push({ attribute: k, value: String(v), type: 'CAPITAL_ATTR' });
+                        }
+
+                        // 2. Check for incorrect NA/null/blank values
+                        if (isInvalidNAValue(v)) {
+                            formatErrors.push({ attribute: k, value: (v === null || v === undefined || String(v).trim() === "") ? "(blank)" : String(v), type: 'INVALID_NA' });
+                        }
+
+                        // Normalize for matching logic
+                        const strVal = String(v).trim();
+                        const normalizedVal = (!strVal || strVal.toLowerCase() === "na" || strVal.toLowerCase() === "null") ? "na" : strVal;
+                        actualParams[cleanedKey] = normalizedVal;
+                    });
+
+                    const actualKeys = Object.keys(actualParams);
 
                     // 1. Missing: Expected but not in Actual
-                    const missing = expectedAttrs.filter(a => !actualAttrs.includes(a));
+                    const missing = expectedAttrs.filter(a => !actualKeys.includes(a));
 
                     // 2. Extra: In Actual but not in Expected
-                    const extra = actualAttrs.filter(a => !expectedAttrs.includes(a));
+                    const extra = actualKeys
+                        .filter(a => !expectedAttrs.includes(a))
+                        .map(a => ({ attribute: a, value: actualParams[a] }));
 
-                    // 3. NA Mismatch: Expected (is present) but value not "na"
-                    const mismatches = expectedAttrs
-                        .filter(a => actualAttrs.includes(a)) // only check present ones
-                        .filter(a => {
-                            // Find actual key using cleaned name
-                            const key = Object.keys(event.params).find(k => cleanAttributeName(k) === a);
-                            const val = key ? event.params[key] : "na";
-                            return String(val).toLowerCase() !== "na";
-                        })
-                        .map(a => {
-                            const key = Object.keys(event.params).find(k => cleanAttributeName(k) === a);
-                            return { attribute: a, actual: key ? event.params[key] : "N/A" };
-                        });
+                    const status = (missing.length > 0 || formatErrors.length > 0) ? "FAIL" : "PASS";
 
-                    if (missing.length > 0 || extra.length > 0 || mismatches.length > 0) {
-                        validationResults.push({
-                            sheetName: plan.sheetName,
-                            titleName: title.name,
-                            eventName: event.eventName,
-                            missingAttributes: missing,
-                            extraAttributes: extra,
-                            naMismatches: mismatches,
-                            status: "FAIL"
-                        });
-                    } else {
-                        validationResults.push({
-                            sheetName: plan.sheetName,
-                            titleName: title.name,
-                            eventName: event.eventName,
-                            missingAttributes: [],
-                            extraAttributes: [],
-                            naMismatches: [],
-                            status: "PASS"
-                        });
-                    }
+                    validationResults.push({
+                        sheetName: plan.sheetName,
+                        titleName: title.name,
+                        eventName: event.eventName,
+                        missingAttributes: missing,
+                        extraAttributes: extra,
+                        formatErrors: formatErrors,
+                        status: status
+                    });
                 });
             });
         });
@@ -662,22 +778,87 @@ function NAValidationReportModal({ plans, rules }: { plans: InHousePlan[], rules
     const handleExportNA = () => {
         const wb = XLSX.utils.book_new();
 
-        const rows = validationResults.map(res => ({
-            "Sheet": res.sheetName,
-            "Title": res.titleName,
-            "Event": res.eventName,
+        // 1. Summary Worksheet
+        const summaryRows = validationResults.map(res => ({
+            "Domain/Sheet": res.sheetName,
+            "Title Name": res.titleName,
+            "Event Name": res.eventName,
             "Status": res.status,
-            "Missing Attributes": res.missingAttributes.join(", "),
-            "Extra Attributes": res.extraAttributes.join(", "),
-            "NA Mismatches": res.naMismatches.map(m => `${m.attribute} (${m.actual})`).join(", ")
+            "Missing Attrs (Count)": res.missingAttributes.length,
+            "Extra Attrs (Count)": res.extraAttributes.length,
+            "Format Errors (Count)": res.formatErrors.length,
+            "NA Check": res.status === "PASS" ? "PASSED" : "FAILED"
         }));
+        const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+        wsSummary['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 25 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 15 }];
 
-        const ws = XLSX.utils.json_to_sheet(rows);
-        // Adjust widths
-        ws['!cols'] = [{ wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 10 }, { wch: 40 }, { wch: 40 }, { wch: 40 }];
+        // 2. Detailed Worksheet
+        const detailedRows: any[] = [];
+        validationResults.forEach(res => {
+            // Add a header for this event
+            detailedRows.push({
+                "Sheet": res.sheetName,
+                "Title": res.titleName,
+                "Event": res.eventName,
+                "Attribute": "--- HEADER ---",
+                "Captured Value": "---",
+                "Result": res.status
+            });
 
-        XLSX.utils.book_append_sheet(wb, ws, "NA Validation Report");
-        XLSX.writeFile(wb, `NA_Validation_Report_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+            res.missingAttributes.forEach(a => {
+                detailedRows.push({
+                    "Sheet": res.sheetName,
+                    "Title": res.titleName,
+                    "Event": res.eventName,
+                    "Attribute": a,
+                    "Captured Value": "MISSING",
+                    "Result": "FAIL (Missing)"
+                });
+            });
+
+            res.formatErrors.forEach(err => {
+                detailedRows.push({
+                    "Sheet": res.sheetName,
+                    "Title": res.titleName,
+                    "Event": res.eventName,
+                    "Attribute": err.attribute,
+                    "Captured Value": err.value,
+                    "Result": err.type === 'CAPITAL_ATTR' ? 'FAIL (Capital Attr)' : 'FAIL (Invalid NA format)'
+                });
+            });
+
+            res.extraAttributes.forEach(a => {
+                detailedRows.push({
+                    "Sheet": res.sheetName,
+                    "Title": res.titleName,
+                    "Event": res.eventName,
+                    "Attribute": a.attribute,
+                    "Captured Value": a.value,
+                    "Result": "EXTRA (Highlight)"
+                });
+            });
+
+            if (res.missingAttributes.length === 0 && res.extraAttributes.length === 0 && res.formatErrors.length === 0) {
+                detailedRows.push({
+                    "Sheet": res.sheetName,
+                    "Title": res.titleName,
+                    "Event": res.eventName,
+                    "Attribute": "All Rules",
+                    "Captured Value": "All attributes passed",
+                    "Result": "PASS"
+                });
+            }
+
+            detailedRows.push({}); // Empty row for separation
+        });
+
+        const wsDetailed = XLSX.utils.json_to_sheet(detailedRows);
+        wsDetailed['!cols'] = [{ wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 20 }];
+
+        XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+        XLSX.utils.book_append_sheet(wb, wsDetailed, "Detailed Analytics Report");
+
+        XLSX.writeFile(wb, `In-House_Analytics_Report_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
     };
 
     return (
@@ -690,7 +871,7 @@ function NAValidationReportModal({ plans, rules }: { plans: InHousePlan[], rules
             <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col bg-background">
                 <DialogHeader>
                     <DialogTitle>NA Attribute Validation</DialogTitle>
-                    <DialogDescription>Comparing actual JSON against &apos;In-House_Analytics_na_Validation_Sheet.xlsx&apos;.</DialogDescription>
+                    <DialogDescription>Checking for naming conventions (lowercase) and valid NA formats.</DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto py-4 space-y-4">
@@ -708,37 +889,59 @@ function NAValidationReportModal({ plans, rules }: { plans: InHousePlan[], rules
                                             <Badge variant={res.status === 'PASS' ? 'default' : 'destructive'} className="mt-1">{res.status}</Badge>
                                         </div>
 
-                                        <div className="flex-1 grid grid-cols-3 gap-4 text-sm">
-                                            <div className="space-y-1">
-                                                <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Missing (Expected NA)</span>
+                                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
+                                            <div className="space-y-1.5">
+                                                <span className="font-bold text-[10px] text-muted-foreground tracking-tight block">Missing (Expected NA)</span>
                                                 {res.missingAttributes.length > 0 ? (
-                                                    <ul className="list-disc list-inside text-red-600 text-xs">
+                                                    <ul className="list-disc list-inside text-red-600 text-[10px] space-y-0.5">
                                                         {res.missingAttributes.map(a => <li key={a}>{a}</li>)}
                                                     </ul>
-                                                ) : <div className="text-green-600 text-xs flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> None</div>}
+                                                ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
                                             </div>
 
-                                            <div className="space-y-1">
-                                                <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Extra (Unexpected)</span>
+                                            <div className="space-y-1.5">
+                                                <span className="font-bold text-[10px] text-muted-foreground tracking-tight block">Extra (Unexpected)</span>
                                                 {res.extraAttributes.length > 0 ? (
-                                                    <ul className="list-disc list-inside text-orange-600 text-xs">
-                                                        {res.extraAttributes.map(a => <li key={a}>{a}</li>)}
+                                                    <ul className="list-disc list-inside text-orange-600 text-[10px] space-y-0.5">
+                                                        {res.extraAttributes.map(a => (
+                                                            <li key={a.attribute} className="truncate" title={a.attribute}>
+                                                                {a.attribute}: <span className="opacity-70 italic text-[9px]">&quot;{a.value}&quot;</span>
+                                                            </li>
+                                                        ))}
                                                     </ul>
-                                                ) : <div className="text-green-600 text-xs flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> None</div>}
+                                                ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
                                             </div>
 
-                                            <div className="space-y-1">
-                                                <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Value Mismatch (Not NA)</span>
-                                                {res.naMismatches.length > 0 ? (
+                                            <div className="space-y-1.5">
+                                                <span className="font-bold text-[10px] text-muted-foreground tracking-tight block leading-tight">If capital letters present in fetched Atribute names</span>
+                                                {res.formatErrors.filter(e => e.type === 'CAPITAL_ATTR').length > 0 ? (
                                                     <div className="space-y-1">
-                                                        {res.naMismatches.map(m => (
-                                                            <div key={m.attribute} className="text-xs flex justify-between bg-red-50 p-1 rounded">
-                                                                <span className="font-medium text-red-700">{m.attribute}</span>
-                                                                <span className="text-red-500 font-mono">&quot;{m.actual}&quot;</span>
+                                                        {res.formatErrors.filter(e => e.type === 'CAPITAL_ATTR').map((err, i) => (
+                                                            <div key={i} className="text-[9px] bg-red-50 p-1 rounded border border-red-100 text-red-700 font-bold truncate">
+                                                                {err.attribute}
                                                             </div>
                                                         ))}
                                                     </div>
-                                                ) : <div className="text-green-600 text-xs flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> None</div>}
+                                                ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <span className="font-bold text-[10px] text-muted-foreground tracking-tight block leading-tight">Capital NA, Null, and Blank value captured for any attributes</span>
+                                                {res.formatErrors.filter(e => e.type === 'INVALID_NA').length > 0 ? (
+                                                    <div className="space-y-1">
+                                                        {res.formatErrors.filter(e => e.type === 'INVALID_NA').map((err, i) => (
+                                                            <div key={i} className="text-[9px] bg-red-50 p-1 rounded border border-red-100 flex flex-col">
+                                                                <span className="text-red-700 font-bold leading-tight">{err.attribute}</span>
+                                                                <span className="text-red-500 italic text-[8px]">&quot;{err.value}&quot;</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <span className="font-bold text-[10px] text-muted-foreground tracking-tight block">Value Mismatch (Not NA)</span>
+                                                <div className="text-green-600 text-[10px] py-1 font-medium">None</div>
                                             </div>
                                         </div>
                                     </div>
@@ -753,6 +956,174 @@ function NAValidationReportModal({ plans, rules }: { plans: InHousePlan[], rules
                         <FileDown className="mr-2 h-4 w-4" /> Export NA Report (Excel)
                     </Button>
                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// --- New Standalone Quick JSON Validator ---
+function QuickNAValidator({ rules }: { rules: Record<string, string[]> }) {
+    const [jsonInput, setJsonInput] = useState("");
+    const [selectedEvent, setSelectedEvent] = useState("");
+    const [result, setResult] = useState<NAValidationResult | null>(null);
+    const { toast } = useToast();
+
+    const handleValidate = () => {
+        if (!jsonInput.trim()) return;
+        if (!selectedEvent) {
+            toast({ title: "Event Required", description: "Please select an event type to validate against.", variant: "destructive" });
+            return;
+        }
+
+        try {
+            const params = parseJsonToParams(jsonInput);
+            const expectedAttrs = rules[selectedEvent] || [];
+
+            const actualParams: Record<string, string> = {};
+            const formatErrors: { attribute: string; value: string; type: 'CAPITAL_ATTR' | 'INVALID_NA' }[] = [];
+
+            Object.entries(params).forEach(([k, v]) => {
+                const cleanedKey = cleanAttributeName(k);
+                if (!cleanedKey || cleanedKey === 'original') return;
+
+                if (/[A-Z]/.test(k)) {
+                    formatErrors.push({ attribute: k, value: String(v), type: 'CAPITAL_ATTR' });
+                }
+
+                if (isInvalidNAValue(v)) {
+                    formatErrors.push({ attribute: k, value: (v === null || v === undefined || String(v).trim() === "") ? "(blank)" : String(v), type: 'INVALID_NA' });
+                }
+
+                const strVal = String(v).trim();
+                const normalizedVal = (!strVal || strVal.toLowerCase() === "na" || strVal.toLowerCase() === "null") ? "na" : strVal;
+                actualParams[cleanedKey] = normalizedVal;
+            });
+
+            const actualKeys = Object.keys(actualParams);
+            const missing = expectedAttrs.filter(a => !actualKeys.includes(a));
+            const extra = actualKeys
+                .filter(a => !expectedAttrs.includes(a))
+                .map(a => ({ attribute: a, value: actualParams[a] }));
+
+            const status = (missing.length > 0 || formatErrors.length > 0) ? "FAIL" : "PASS";
+
+            setResult({
+                sheetName: "Instant Validation",
+                titleName: "Manual Paste",
+                eventName: selectedEvent,
+                missingAttributes: missing,
+                extraAttributes: extra,
+                formatErrors: formatErrors,
+                status: status
+            });
+        } catch (e) {
+            toast({ title: "Invalid JSON", description: "Please provide a valid JSON object.", variant: "destructive" });
+        }
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                    <Zap className="mr-2 h-4 w-4" /> Instant NA Verify
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col bg-background">
+                <DialogHeader>
+                    <DialogTitle>Instant JSON NA Validator</DialogTitle>
+                    <DialogDescription>Paste JSON directly to see if it follows NA verification rules.</DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto py-4 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">1. Select Event Type</Label>
+                            <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                                <SelectTrigger className="bg-background">
+                                    <SelectValue placeholder="Select Event Rules..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.keys(rules).sort().map(name => (
+                                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">2. Paste JSON</Label>
+                            <Textarea
+                                className="font-mono text-[10px] min-h-[120px] bg-muted/20"
+                                placeholder='{ "fields": { "attribute": "value" } }'
+                                value={jsonInput}
+                                onChange={(e) => setJsonInput(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <Button onClick={handleValidate} className="w-full bg-indigo-600 hover:bg-indigo-700">Validate Now</Button>
+
+                    {result && (
+                        <div className="pt-4 border-t animate-in fade-in slide-in-from-top-2">
+                            <Card className={`border-l-4 ${result.status === 'PASS' ? 'border-l-green-500' : 'border-l-red-500'}`}>
+                                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                    <div className="space-y-1.5">
+                                        <span className="font-bold text-[10px] text-muted-foreground tracking-tight block">Missing (Expected NA)</span>
+                                        {result.missingAttributes.length > 0 ? (
+                                            <ul className="list-disc list-inside text-red-600 text-[10px] space-y-0.5">
+                                                {result.missingAttributes.map(a => <li key={a}>{a}</li>)}
+                                            </ul>
+                                        ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <span className="font-bold text-[10px] text-muted-foreground tracking-tight block">Extra (Unexpected)</span>
+                                        {result.extraAttributes.length > 0 ? (
+                                            <ul className="list-disc list-inside text-orange-600 text-[10px] space-y-0.5">
+                                                {result.extraAttributes.map(a => (
+                                                    <li key={a.attribute} className="truncate" title={a.attribute}>
+                                                        {a.attribute}: <span className="opacity-70 italic">"{a.value}"</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <span className="font-bold text-[10px] text-muted-foreground tracking-tight block leading-tight">If capital letters present in fetched Atribute names</span>
+                                        {result.formatErrors.filter(e => e.type === 'CAPITAL_ATTR').length > 0 ? (
+                                            <div className="space-y-1">
+                                                {result.formatErrors.filter(e => e.type === 'CAPITAL_ATTR').map((err, i) => (
+                                                    <div key={i} className="text-[9px] bg-red-50 p-1 rounded border border-red-100 text-red-700 font-bold truncate">
+                                                        {err.attribute}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <span className="font-bold text-[10px] text-muted-foreground tracking-tight block leading-tight">Capital NA, Null, and Blank value captured for any attributes</span>
+                                        {result.formatErrors.filter(e => e.type === 'INVALID_NA').length > 0 ? (
+                                            <div className="space-y-1">
+                                                {result.formatErrors.filter(e => e.type === 'INVALID_NA').map((err, i) => (
+                                                    <div key={i} className="text-[9px] bg-red-50 p-1 rounded border border-red-100 flex flex-col">
+                                                        <span className="text-red-700 font-bold">{err.attribute}</span>
+                                                        <span className="text-red-500 italic">"{err.value}"</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : <div className="text-green-600 text-[10px] py-1 font-medium">None</div>}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <span className="font-bold text-[10px] text-muted-foreground tracking-tight block">Value Mismatch (Not NA)</span>
+                                        <div className="text-green-600 text-[10px] py-1 font-medium">None</div>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+                </div>
             </DialogContent>
         </Dialog>
     );
@@ -782,29 +1153,41 @@ function CleverTapTrackerPageComponent() {
 
     // Load Validation Rules on Mount
     useEffect(() => {
-        fetch('/In-House_Analytics_na_Validation_Sheet.xlsx')
-            .then(res => {
-                if (!res.ok) throw new Error("File not found");
-                return res.arrayBuffer();
-            })
-            .then(ab => {
+        const filenames = [
+            '/In-House_Analytics_Expected_Attributes.xlsx',
+            '/InHouse_Analytics_Validation_Rules.xlsx',
+            '/In-House_Analytics_na_Validation_Sheet.xlsx'
+        ];
+
+        const tryFetch = async (index: number) => {
+            if (index >= filenames.length) {
+                console.warn("No validation sheet found from any of the specified paths:", filenames.join(", "));
+                toast({ title: "Notice", description: "Default validation rules applied (No custom sheet found)." });
+                return;
+            }
+            try {
+                const res = await fetch(filenames[index]);
+                if (!res.ok) throw new Error("Not found");
+                const ab = await res.arrayBuffer();
                 const wb = XLSX.read(ab, { type: 'array' });
                 const rules: Record<string, string[]> = {};
                 wb.SheetNames.forEach(name => {
                     const sheet = wb.Sheets[name];
-                    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as string[][];
-                    // Flatten and cleanup
-                    const attrs = data.flat().filter(x => typeof x === 'string' && x.trim());
-                    // Normalize event names if necessary (e.g., trim)
-                    rules[name.trim()] = attrs.map(a => a.trim());
+                    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+                    const attrs = data.flat()
+                        .filter(x => x !== null && x !== undefined && x !== '')
+                        .map(x => String(x).trim().toLowerCase())
+                        .filter(x => x !== '');
+                    rules[name.trim()] = Array.from(new Set(attrs));
                 });
                 setValidationRules(rules);
-                console.log("Validation Rules Loaded:", rules);
-            })
-            .catch(err => {
-                console.warn("Validation sheet not found or invalid.", err);
-                toast({ title: "Notice", description: "Default validation rules applied (No custom sheet found)." });
-            });
+                console.log(`Validation Rules Loaded from ${filenames[index]}:`, rules);
+            } catch (e) {
+                tryFetch(index + 1);
+            }
+        };
+
+        tryFetch(0);
     }, []);
 
     const handlePlatformDetailsSubmit = (data: PlatformFormValues) => { setPlatformData(data); setStep("config"); };
@@ -860,41 +1243,28 @@ function CleverTapTrackerPageComponent() {
                     if (keys.length === 0) return;
 
                     keys.forEach(key => {
-                        const keyClean = cleanAttributeName(key);
+                        // Extract key Clean but keep original key for the labels if we want casing errors to show
                         const actualVal = event.params[key];
-
-                        // Validation Logic using Loaded Rules
-                        // Default: If no rules found for event, assume NO specific NA requirement (expect Value) ?? 
-                        // Or Keep original logic? User said "categorise all".
-                        // If rules exist:
-                        //   In List -> Expect 'na'
-                        //   Not In List -> Expect 'Value'
+                        const keyClean = cleanAttributeName(key);
 
                         const eventRules = validationRules[event.eventName] || [];
                         const isExpectedNa = eventRules.includes(keyClean);
-
                         const expectedVal = isExpectedNa ? "na" : "Value";
 
                         let matchStatus = "Mismatched";
                         if (isExpectedNa) {
-                            // We expect NA
-                            if (String(actualVal).toLowerCase() === "na") matchStatus = "Matched";
+                            // Must be EXACTLY lowercase 'na'
+                            if (actualVal === "na") matchStatus = "Matched";
                         } else {
-                            // We expect a Value (Not NA)
-                            if (String(actualVal).toLowerCase() !== "na" && actualVal !== "" && actualVal !== null && actualVal !== undefined) matchStatus = "Matched";
+                            // If NOT expected to be NA, it must have a value and NOT be any form of NA/null/blank
+                            if (!isInvalidNAValue(actualVal) && String(actualVal).toLowerCase() !== "na") matchStatus = "Matched";
                         }
-
-                        // Fallback/Safety: If validationRules is empty, maybe revert to old behavior? 
-                        // User provided specific file, so we trust it. If file missing, empty rules -> everything expects Value? 
-                        // That might cause mass mismatches if everything is 'na'.
-                        // Let's add a safe default: IF valid rules are completely missing for this event, maybe be lenient?
-                        // No, precise logic requested.
 
                         validationRows.push({
                             "Sheet Name": plan.sheetName,
                             "Title": title.name,
                             "Event Name": event.eventName,
-                            "Attribute": keyClean,
+                            "Attribute": key, // Use ORIGINAL KEY to preserve casing for the export! 
                             "Actual Value": actualVal,
                             "Expected Value": expectedVal,
                             "Match Status": matchStatus
@@ -1181,8 +1551,11 @@ function CleverTapTrackerPageComponent() {
                                             }}
                                         />
 
-                                        {/* New NA Validation Button */}
+                                        {/* Original Bulk NA Validation */}
                                         <NAValidationReportModal plans={inHousePlans} rules={validationRules} />
+
+                                        {/* New Standalone Direct JSON Paste Validator */}
+                                        <QuickNAValidator rules={validationRules} />
 
                                         <Button
                                             onClick={handleValidationExport}
